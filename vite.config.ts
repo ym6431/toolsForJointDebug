@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   build: {
@@ -19,5 +19,11 @@ export default defineConfig({
       },
     },
     target: 'es2022',
+  },
+  test: {
+    environment: 'node',
+    include: ['src/**/*.test.ts'],
+    clearMocks: true,
+    restoreMocks: true,
   },
 })
