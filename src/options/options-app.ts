@@ -2,9 +2,13 @@ import { LitElement, css, html } from 'lit'
 import { customElement, state } from 'lit/decorators.js'
 import { getCustomConfig, resetCustomConfig, saveCustomConfig } from '../shared/storage'
 import type { ConfigItem, StorageType } from '../shared/types'
+import { dedupeConfig } from '../shared/utils'
 
 @customElement('options-app')
 export class OptionsApp extends LitElement {
+  private readonly importInputId = 'config-import-input'
+  private importMode: 'replace' | 'merge' = 'replace'
+
   @state()
   private customItems: ConfigItem[] = []
 
@@ -78,6 +82,109 @@ export class OptionsApp extends LitElement {
     this.message = '自定义配置已保存。'
   }
 
+  private handleExportConfig() {
+    const payload = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      items: this.customItems,
+    }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: 'application/json',
+    })
+    const downloadUrl = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    const date = new Date().toISOString().slice(0, 10)
+
+    link.href = downloadUrl
+    link.download = `state-migrator-config-${date}.json`
+    link.click()
+
+    URL.revokeObjectURL(downloadUrl)
+    this.message = `已导出 ${this.customItems.length} 项配置。`
+  }
+
+  private openImportPicker(mode: 'replace' | 'merge') {
+    this.importMode = mode
+    this.renderRoot
+      .querySelector<HTMLInputElement>(`#${this.importInputId}`)
+      ?.click()
+  }
+
+  private isStorageType(value: unknown): value is StorageType {
+    return (
+      value === 'localStorage'
+      || value === 'sessionStorage'
+      || value === 'cookie'
+    )
+  }
+
+  private normalizeImportedConfig(data: unknown) {
+    const items =
+      Array.isArray(data)
+        ? data
+        : data && typeof data === 'object' && 'items' in data
+          ? (data as { items?: unknown }).items
+          : null
+
+    if (!Array.isArray(items)) {
+      throw new Error('导入文件格式不正确，缺少 items 数组。')
+    }
+
+    return items.map((item, index) => {
+      if (!item || typeof item !== 'object') {
+        throw new Error(`第 ${index + 1} 项不是合法对象。`)
+      }
+
+      const storageType = 'storageType' in item ? item.storageType : null
+      const key = 'key' in item ? item.key : null
+      const description = 'description' in item ? item.description : ''
+
+      if (!this.isStorageType(storageType)) {
+        throw new Error(`第 ${index + 1} 项的 storageType 不合法。`)
+      }
+
+      if (typeof key !== 'string' || !key.trim()) {
+        throw new Error(`第 ${index + 1} 项的 key 不能为空。`)
+      }
+
+      return {
+        storageType,
+        key,
+        description: typeof description === 'string' ? description : String(description ?? ''),
+      } satisfies ConfigItem
+    })
+  }
+
+  private async handleImportFile(event: Event) {
+    const input = event.target as HTMLInputElement
+    const file = input.files?.[0]
+
+    if (!file) {
+      return
+    }
+
+    try {
+      const text = await file.text()
+      const parsed = JSON.parse(text) as unknown
+      const importedItems = this.normalizeImportedConfig(parsed)
+
+      if (this.importMode === 'merge') {
+        const mergedItems = dedupeConfig([...this.customItems, ...importedItems])
+        const addedCount = mergedItems.length - this.customItems.length
+
+        this.customItems = mergedItems
+        this.message = `已追加合并 ${importedItems.length} 项配置，实际新增 ${addedCount} 项，请确认后保存。`
+      } else {
+        this.customItems = dedupeConfig(importedItems)
+        this.message = `已覆盖导入 ${this.customItems.length} 项配置，请确认后保存。`
+      }
+    } catch (error) {
+      this.message = error instanceof Error ? error.message : '导入配置失败。'
+    } finally {
+      input.value = ''
+    }
+  }
+
   private async restoreDefaults() {
     await resetCustomConfig()
     this.customItems = []
@@ -145,6 +252,13 @@ export class OptionsApp extends LitElement {
             <h2>自定义配置</h2>
             <span>${this.customItems.length} 项</span>
           </div>
+          <input
+            id=${this.importInputId}
+            class="visually-hidden"
+            type="file"
+            accept="application/json,.json"
+            @change=${this.handleImportFile}
+          />
           ${this.customItems.length === 0
             ? html`<p class="empty">还没有自定义配置。</p>`
             : html`
@@ -153,6 +267,13 @@ export class OptionsApp extends LitElement {
                 </div>
               `}
           <div class="actions">
+            <button class="secondary" @click=${this.handleExportConfig}>导出配置</button>
+            <button class="secondary" @click=${() => this.openImportPicker('merge')}>
+              追加合并导入
+            </button>
+            <button class="secondary" @click=${() => this.openImportPicker('replace')}>
+              覆盖导入
+            </button>
             <button class="primary" @click=${this.saveAll}>保存自定义配置</button>
             <button class="secondary" @click=${this.restoreDefaults}>清空全部配置</button>
           </div>
@@ -393,6 +514,18 @@ export class OptionsApp extends LitElement {
 
     .message {
       margin-top: 12px;
+    }
+
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }
 
     @media (max-width: 820px) {

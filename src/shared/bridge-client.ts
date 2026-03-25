@@ -2,6 +2,7 @@ import {
   BRIDGE_REQUEST_EVENT,
   BRIDGE_RESPONSE_EVENT,
 } from './constants'
+import pageBridgeScript from '../page-bridge.ts?script&module'
 import type {
   ConfigItem,
   DatasetItem,
@@ -17,7 +18,7 @@ function ensurePageBridgeInjected() {
 
   const script = document.createElement('script')
   script.id = 'state-migrator-page-bridge'
-  script.src = chrome.runtime.getURL('assets/page-bridge.js')
+  script.src = chrome.runtime.getURL(pageBridgeScript)
   script.type = 'module'
   ;(document.head || document.documentElement).append(script)
 }

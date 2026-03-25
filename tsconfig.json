@@ -5,7 +5,7 @@
     "useDefineForClassFields": false,
     "module": "ESNext",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "types": ["vite/client"],
+    "types": ["vite/client", "@crxjs/vite-plugin/client"],
     "skipLibCheck": true,
 
     /* Bundler mode */
