@@ -53,6 +53,7 @@ describe('shared utils', () => {
       'bar.example.com.cn',
     )
     expect(formatDisplayHost('http://localhost:5173')).toBe('localhost:5173')
-    expect(formatDisplayHost('https://127.0.0.1:3000')).toBe('127.0.0.1:3000')
+    expect(formatDisplayHost('https://127.0.0.1:3000')).toBe('127.0.0.1')
+    expect(formatDisplayHost('https://[2001:db8::1]:3000')).toBe('2001:db8::1')
   })
 })

@@ -77,13 +77,12 @@ export function previewValue(value: string, maxLength = 72) {
 function getTrimmedHost(host: string, hostname: string, port: string) {
   const normalizedHostname = hostname.trim().toLowerCase()
 
-  if (
-    !normalizedHostname ||
-    normalizedHostname === 'localhost' ||
-    isIpv4Address(normalizedHostname) ||
-    normalizedHostname.includes(':')
-  ) {
+  if (!normalizedHostname || normalizedHostname === 'localhost') {
     return host
+  }
+
+  if (isIpAddress(normalizedHostname)) {
+    return normalizeIpDisplay(normalizedHostname)
   }
 
   const parts = normalizedHostname.split('.').filter(Boolean)
@@ -100,4 +99,12 @@ function getTrimmedHost(host: string, hostname: string, port: string) {
 function isIpv4Address(hostname: string) {
   return hostname.split('.').length === 4 &&
     hostname.split('.').every((segment) => /^\d+$/.test(segment))
+}
+
+function isIpAddress(hostname: string) {
+  return isIpv4Address(hostname) || hostname.includes(':')
+}
+
+function normalizeIpDisplay(hostname: string) {
+  return hostname.replace(/^\[(.*)\]$/, '$1')
 }
