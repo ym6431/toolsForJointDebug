@@ -48,6 +48,16 @@ export function formatTimestamp(isoString: string) {
   })
 }
 
+export function formatDisplayHost(urlString: string) {
+  try {
+    const { host, hostname, port } = new URL(urlString)
+
+    return getTrimmedHost(host, hostname, port)
+  } catch {
+    return urlString
+  }
+}
+
 export function createId() {
   if ('randomUUID' in crypto) {
     return crypto.randomUUID()
@@ -62,4 +72,32 @@ export function previewValue(value: string, maxLength = 72) {
   }
 
   return `${value.slice(0, maxLength)}...`
+}
+
+function getTrimmedHost(host: string, hostname: string, port: string) {
+  const normalizedHostname = hostname.trim().toLowerCase()
+
+  if (
+    !normalizedHostname ||
+    normalizedHostname === 'localhost' ||
+    isIpv4Address(normalizedHostname) ||
+    normalizedHostname.includes(':')
+  ) {
+    return host
+  }
+
+  const parts = normalizedHostname.split('.').filter(Boolean)
+
+  if (parts.length <= 2) {
+    return host
+  }
+
+  const trimmedHostname = parts.slice(1).join('.')
+
+  return port ? `${trimmedHostname}:${port}` : trimmedHostname
+}
+
+function isIpv4Address(hostname: string) {
+  return hostname.split('.').length === 4 &&
+    hostname.split('.').every((segment) => /^\d+$/.test(segment))
 }

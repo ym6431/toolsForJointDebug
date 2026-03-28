@@ -13,6 +13,7 @@ import type {
   PageInfo,
 } from '../shared/types'
 import {
+  formatDisplayHost,
   formatTimestamp,
   previewValue,
   toRecordKey,
@@ -130,7 +131,7 @@ export class PopupApp extends LitElement {
       this.selectedExportKeys = new Set(
         items.map((item) => toRecordKey(item.storageType, item.key)),
       )
-      this.datasetName = `Imported from ${new URL(this.pageInfo.url).hostname}`
+      this.datasetName = `Imported from ${formatDisplayHost(this.pageInfo.url)}`
       this.result = {
         ok: true,
         message:
@@ -387,7 +388,7 @@ export class PopupApp extends LitElement {
                                   <div class="dataset-meta">
                                     <strong>${item.datasetName}</strong>
                                     <span>${formatTimestamp(item.createdAt)}</span>
-                                    <span>${new URL(item.sourceUrl).hostname}</span>
+                                    <span>${formatDisplayHost(item.sourceUrl)}</span>
                                   </div>
                                   <button
                                     class="ghost"
@@ -416,7 +417,7 @@ export class PopupApp extends LitElement {
                     ${dataset
                       ? html`
                           <p class="dataset-source">
-                            ${dataset.datasetName} · 来源 ${dataset.sourceUrl}
+                            ${dataset.datasetName} · 来源 ${formatDisplayHost(dataset.sourceUrl)}
                           </p>
                           ${dataset.items.map((item) => this.renderItemRow(item, 'import'))}
                           <button
@@ -592,6 +593,15 @@ export class PopupApp extends LitElement {
       align-items: start;
     }
 
+    .item-row input[type='checkbox'],
+    .dataset-card input[type='radio'] {
+      width: 16px;
+      height: 16px;
+      margin: 2px 0 0;
+      padding: 0;
+      flex: none;
+    }
+
     .item-meta {
       display: grid;
       gap: 8px;
@@ -658,8 +668,7 @@ export class PopupApp extends LitElement {
     input[type='image'],
     input[type='button'],
     input[type='submit'],
-    input[type='reset'],
-    input {
+    input[type='reset'] {
       width: 100%;
       box-sizing: border-box;
       border: 1px solid var(--color-border-strong);

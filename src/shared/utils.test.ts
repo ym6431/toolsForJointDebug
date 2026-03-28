@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   dedupeConfig,
   dedupeDatasetItems,
+  formatDisplayHost,
   previewValue,
   toRecordKey,
 } from './utils'
@@ -41,5 +42,17 @@ describe('shared utils', () => {
   it('truncates long preview values', () => {
     expect(previewValue('1234567890', 5)).toBe('12345...')
     expect(previewValue('short', 10)).toBe('short')
+  })
+
+  it('formats source urls into trimmed hosts', () => {
+    expect(formatDisplayHost('https://sub.example.com/path')).toBe('example.com')
+    expect(formatDisplayHost('https://aaa.bbb.ccc:8080/demo')).toBe(
+      'bbb.ccc:8080',
+    )
+    expect(formatDisplayHost('https://foo.bar.example.com.cn/demo')).toBe(
+      'bar.example.com.cn',
+    )
+    expect(formatDisplayHost('http://localhost:5173')).toBe('localhost:5173')
+    expect(formatDisplayHost('https://127.0.0.1:3000')).toBe('127.0.0.1:3000')
   })
 })
