@@ -6,6 +6,7 @@
     "module": "ESNext",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "types": [
+      "chrome-types",
       "vite/client",
       "@crxjs/vite-plugin/client",
       "vitest-environment-web-ext/types"

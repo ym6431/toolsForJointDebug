@@ -15,6 +15,9 @@ importers:
       '@crxjs/vite-plugin':
         specifier: ^2.4.0
         version: 2.4.0(vite@8.0.2)
+      chrome-types:
+        specifier: ^0.1.425
+        version: 0.1.425
       typescript:
         specifier: ~5.9.3
         version: 5.9.3
@@ -246,6 +249,9 @@ packages:
   chai@6.2.2:
     resolution: {integrity: sha512-NUPRluOfOiTKBKvWPtSD4PhFvWCqOi0BGStNWs57X9js7XGTprSmFoz5F0tWhR4WPjNeR9jXqdC7/UpSJTnlRg==}
     engines: {node: '>=18'}
+
+  chrome-types@0.1.425:
+    resolution: {integrity: sha512-uc1Mc4EGLUeZ1O6ZeQwezCLBrwbBxsPeCu9V7E+8+YHudg6RecgWtzG7L2m+ZW+3ahayhFDq0BwjM2aFujxdyw==}
 
   convert-source-map@1.9.0:
     resolution: {integrity: sha512-ASFBup0Mz1uyiIjANan1jzLQami9z1PoYSZCiiYW2FczPbenXc45FZdBZLzOT+r6+iciuEModtmCti+hjaAk0A==}
@@ -873,6 +879,8 @@ snapshots:
       fill-range: 7.1.1
 
   chai@6.2.2: {}
+
+  chrome-types@0.1.425: {}
 
   convert-source-map@1.9.0: {}
 
