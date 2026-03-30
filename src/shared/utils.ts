@@ -74,6 +74,42 @@ export function previewValue(value: string, maxLength = 72) {
   return `${value.slice(0, maxLength)}...`
 }
 
+export function normalizePort(value: string) {
+  const trimmedValue = value.trim()
+
+  if (!trimmedValue) {
+    return ''
+  }
+
+  if (!/^\d+$/.test(trimmedValue)) {
+    return ''
+  }
+
+  const port = Number(trimmedValue)
+
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    return ''
+  }
+
+  return String(port)
+}
+
+export function normalizePortList(values: string[]) {
+  const seen = new Set<string>()
+
+  return values.flatMap((value) => {
+    const normalizedPort = normalizePort(value)
+
+    if (!normalizedPort || seen.has(normalizedPort)) {
+      return []
+    }
+
+    seen.add(normalizedPort)
+
+    return [normalizedPort]
+  })
+}
+
 function getTrimmedHost(host: string, hostname: string, port: string) {
   const normalizedHostname = hostname.trim().toLowerCase()
 

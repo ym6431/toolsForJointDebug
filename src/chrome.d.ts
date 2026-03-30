@@ -1,4 +1,23 @@
 declare namespace chrome {
+  namespace cookies {
+    interface Cookie {
+      name: string
+      value: string
+      httpOnly: boolean
+      path: string
+    }
+
+    function getAll(details: { url?: string }): Promise<Cookie[]>
+    function set(details: {
+      url: string
+      name?: string
+      value?: string
+      path?: string
+      secure?: boolean
+      sameSite?: 'no_restriction' | 'lax' | 'strict' | 'unspecified'
+    }): Promise<Cookie | undefined>
+  }
+
   namespace storage {
     interface StorageArea {
       get(
@@ -51,6 +70,10 @@ declare namespace chrome {
       active?: boolean
       currentWindow?: boolean
     }): Promise<Tab[]>
+    function create(createProperties: {
+      url?: string
+      active?: boolean
+    }): Promise<Tab>
     function reload(tabId?: number): Promise<void>
     function sendMessage(tabId: number, message: unknown): Promise<unknown>
   }

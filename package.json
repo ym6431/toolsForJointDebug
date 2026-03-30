@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "check": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "test:e2e:watch": "vitest --config vitest.e2e.config.ts"
   },
   "dependencies": {
     "lit": "^3.3.2"
@@ -18,6 +20,7 @@
     "@crxjs/vite-plugin": "^2.4.0",
     "typescript": "~5.9.3",
     "vite": "^8.0.1",
-    "vitest": "^4.1.1"
+    "vitest": "^4.1.1",
+    "vitest-environment-web-ext": "^0.0.3"
   }
 }

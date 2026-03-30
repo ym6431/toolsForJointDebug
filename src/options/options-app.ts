@@ -1,8 +1,18 @@
 import { LitElement, css, html } from 'lit'
 import { customElement, state } from 'lit/decorators.js'
-import { getCustomConfig, resetCustomConfig, saveCustomConfig } from '../shared/storage'
+import type { SelectOption } from '../components/app-select'
+import '../components/app-input'
+import '../components/app-select'
+import {
+  getCustomConfig,
+  getDefaultLocalhostPort,
+  getLocalhostPorts,
+  resetCustomConfig,
+  saveCustomConfig,
+  saveLocalhostTargetConfig,
+} from '../shared/storage'
 import type { ConfigItem, StorageType } from '../shared/types'
-import { dedupeConfig } from '../shared/utils'
+import { dedupeConfig, normalizePort, normalizePortList } from '../shared/utils'
 
 @customElement('options-app')
 export class OptionsApp extends LitElement {
@@ -22,13 +32,30 @@ export class OptionsApp extends LitElement {
   @state()
   private message = ''
 
+  @state()
+  private localhostPorts: string[] = []
+
+  @state()
+  private defaultLocalhostPort = ''
+
+  @state()
+  private localhostPortDraft = ''
+
   connectedCallback() {
     super.connectedCallback()
     void this.loadConfig()
   }
 
   private async loadConfig() {
-    this.customItems = await getCustomConfig()
+    const [customItems, localhostPorts, defaultLocalhostPort] = await Promise.all([
+      getCustomConfig(),
+      getLocalhostPorts(),
+      getDefaultLocalhostPort(),
+    ])
+
+    this.customItems = customItems
+    this.localhostPorts = localhostPorts
+    this.defaultLocalhostPort = defaultLocalhostPort
   }
 
   private updateDraft<K extends keyof ConfigItem>(key: K, value: ConfigItem[K]) {
@@ -77,15 +104,57 @@ export class OptionsApp extends LitElement {
     this.customItems = this.customItems.filter((_, itemIndex) => itemIndex !== index)
   }
 
+  private addLocalhostPort() {
+    const normalizedPort = normalizePort(this.localhostPortDraft)
+
+    if (!normalizedPort) {
+      this.message = '端口必须是 1 到 65535 之间的数字。'
+      return
+    }
+
+    if (this.localhostPorts.includes(normalizedPort)) {
+      this.message = `localhost:${normalizedPort} 已存在。`
+      this.localhostPortDraft = ''
+      return
+    }
+
+    this.localhostPorts = [...this.localhostPorts, normalizedPort]
+    this.defaultLocalhostPort = this.defaultLocalhostPort || normalizedPort
+    this.localhostPortDraft = ''
+    this.message = ''
+  }
+
+  private removeLocalhostPort(port: string) {
+    this.localhostPorts = this.localhostPorts.filter((item) => item !== port)
+
+    if (this.defaultLocalhostPort === port) {
+      this.defaultLocalhostPort = this.localhostPorts[0] ?? ''
+    }
+  }
+
+  private setDefaultLocalhostPort(port: string) {
+    this.defaultLocalhostPort = port
+  }
+
   private async saveAll() {
     this.customItems = await saveCustomConfig(this.customItems)
-    this.message = '自定义配置已保存。'
+
+    const localhostTargetConfig = await saveLocalhostTargetConfig(
+      this.localhostPorts,
+      this.defaultLocalhostPort,
+    )
+
+    this.localhostPorts = localhostTargetConfig.localhostPorts
+    this.defaultLocalhostPort = localhostTargetConfig.defaultLocalhostPort
+    this.message = '配置已保存。'
   }
 
   private handleExportConfig() {
     const payload = {
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
+      localhostPorts: this.localhostPorts,
+      defaultLocalhostPort: this.defaultLocalhostPort,
       items: this.customItems,
     }
     const blob = new Blob([JSON.stringify(payload, null, 2)], {
@@ -125,34 +194,55 @@ export class OptionsApp extends LitElement {
         : data && typeof data === 'object' && 'items' in data
           ? (data as { items?: unknown }).items
           : null
+    const localhostPorts =
+      data && typeof data === 'object' && 'localhostPorts' in data
+        ? (data as { localhostPorts?: unknown }).localhostPorts
+        : []
+    const defaultLocalhostPort =
+      data && typeof data === 'object' && 'defaultLocalhostPort' in data
+        ? (data as { defaultLocalhostPort?: unknown }).defaultLocalhostPort
+        : data && typeof data === 'object' && 'localhostPort' in data
+          ? (data as { localhostPort?: unknown }).localhostPort
+          : ''
 
     if (!Array.isArray(items)) {
       throw new Error('导入文件格式不正确，缺少 items 数组。')
     }
 
-    return items.map((item, index) => {
-      if (!item || typeof item !== 'object') {
-        throw new Error(`第 ${index + 1} 项不是合法对象。`)
-      }
+    const normalizedPorts = Array.isArray(localhostPorts)
+      ? localhostPorts.flatMap((value) => (typeof value === 'string' ? [value] : []))
+      : typeof defaultLocalhostPort === 'string' && defaultLocalhostPort
+        ? [defaultLocalhostPort]
+        : []
 
-      const storageType = 'storageType' in item ? item.storageType : null
-      const key = 'key' in item ? item.key : null
-      const description = 'description' in item ? item.description : ''
+    return {
+      localhostPorts: normalizedPorts,
+      defaultLocalhostPort:
+        typeof defaultLocalhostPort === 'string' ? defaultLocalhostPort : '',
+      items: items.map((item, index) => {
+        if (!item || typeof item !== 'object') {
+          throw new Error(`第 ${index + 1} 项不是合法对象。`)
+        }
 
-      if (!this.isStorageType(storageType)) {
-        throw new Error(`第 ${index + 1} 项的 storageType 不合法。`)
-      }
+        const storageType = 'storageType' in item ? item.storageType : null
+        const key = 'key' in item ? item.key : null
+        const description = 'description' in item ? item.description : ''
 
-      if (typeof key !== 'string' || !key.trim()) {
-        throw new Error(`第 ${index + 1} 项的 key 不能为空。`)
-      }
+        if (!this.isStorageType(storageType)) {
+          throw new Error(`第 ${index + 1} 项的 storageType 不合法。`)
+        }
 
-      return {
-        storageType,
-        key,
-        description: typeof description === 'string' ? description : String(description ?? ''),
-      } satisfies ConfigItem
-    })
+        if (typeof key !== 'string' || !key.trim()) {
+          throw new Error(`第 ${index + 1} 项的 key 不能为空。`)
+        }
+
+        return {
+          storageType,
+          key,
+          description: typeof description === 'string' ? description : String(description ?? ''),
+        } satisfies ConfigItem
+      }),
+    }
   }
 
   private async handleImportFile(event: Event) {
@@ -166,16 +256,25 @@ export class OptionsApp extends LitElement {
     try {
       const text = await file.text()
       const parsed = JSON.parse(text) as unknown
-      const importedItems = this.normalizeImportedConfig(parsed)
+      const importedConfig = this.normalizeImportedConfig(parsed)
+      const importedItems = importedConfig.items
 
       if (this.importMode === 'merge') {
         const mergedItems = dedupeConfig([...this.customItems, ...importedItems])
-        const addedCount = mergedItems.length - this.customItems.length
+        const mergedPorts = normalizePortList([
+          ...this.localhostPorts,
+          ...importedConfig.localhostPorts,
+        ])
 
         this.customItems = mergedItems
-        this.message = `已追加合并 ${importedItems.length} 项配置，实际新增 ${addedCount} 项，请确认后保存。`
+        this.localhostPorts = mergedPorts
+        this.defaultLocalhostPort =
+          normalizePort(importedConfig.defaultLocalhostPort) || this.defaultLocalhostPort
+        this.message = `已追加合并 ${importedItems.length} 项配置，请确认后保存。`
       } else {
         this.customItems = dedupeConfig(importedItems)
+        this.localhostPorts = normalizePortList(importedConfig.localhostPorts)
+        this.defaultLocalhostPort = normalizePort(importedConfig.defaultLocalhostPort)
         this.message = `已覆盖导入 ${this.customItems.length} 项配置，请确认后保存。`
       }
     } catch (error) {
@@ -186,8 +285,14 @@ export class OptionsApp extends LitElement {
   }
 
   private async restoreDefaults() {
-    await resetCustomConfig()
+    await Promise.all([
+      resetCustomConfig(),
+      saveLocalhostTargetConfig([], ''),
+    ])
     this.customItems = []
+    this.localhostPorts = []
+    this.defaultLocalhostPort = ''
+    this.localhostPortDraft = ''
     this.message = '已清空全部配置项。'
   }
 
@@ -207,44 +312,104 @@ export class OptionsApp extends LitElement {
           <div class="editor-grid">
             <label class="field field-storage">
               <span>Storage 类型</span>
-              <select
+              <app-select
+                .options=${this.storageTypeOptions}
                 .value=${this.draft.storageType}
-                @change=${(event: Event) =>
+                @value-change=${(event: Event) =>
                   this.updateDraft(
                     'storageType',
-                    (event.target as HTMLSelectElement).value as StorageType,
+                    (event as CustomEvent<string>).detail as StorageType,
                   )}
-              >
-                <option value="localStorage">localStorage</option>
-                <option value="sessionStorage">sessionStorage</option>
-                <option value="cookie">cookie</option>
-              </select>
+              ></app-select>
             </label>
             <label class="field field-key">
               <span>Key</span>
-              <input
+              <app-input
                 .value=${this.draft.key}
-                @input=${(event: InputEvent) =>
-                  this.updateDraft('key', (event.target as HTMLInputElement).value)}
+                @value-change=${(event: Event) =>
+                  this.updateDraft('key', (event as CustomEvent<string>).detail)}
                 placeholder="例如 userLocale"
-              />
+              ></app-input>
             </label>
             <label class="field field-description">
               <span>说明</span>
-              <input
+              <app-input
                 .value=${this.draft.description}
-                @input=${(event: InputEvent) =>
+                @value-change=${(event: Event) =>
                   this.updateDraft(
                     'description',
-                    (event.target as HTMLInputElement).value,
+                    (event as CustomEvent<string>).detail,
                   )}
                 placeholder="例如：业务语言标识"
-              />
+              ></app-input>
             </label>
           </div>
           <div class="actions">
             <button class="primary" @click=${this.addCustomItem}>加入列表</button>
           </div>
+        </section>
+
+        <section class="panel">
+          <div class="section-head">
+            <h2>本地注入目标</h2>
+          </div>
+          <div class="port-editor">
+            <label class="field">
+              <span>新增端口</span>
+              <app-input
+                .value=${this.localhostPortDraft}
+                inputmode="numeric"
+                @value-change=${(event: Event) => {
+                  this.localhostPortDraft = (event as CustomEvent<string>).detail
+                }}
+                placeholder="例如：5173"
+              ></app-input>
+            </label>
+            <button class="secondary" @click=${this.addLocalhostPort}>加入端口列表</button>
+          </div>
+          ${this.localhostPorts.length === 0
+            ? html`<p class="empty">还没有可用的 localhost 端口。</p>`
+            : html`
+                <div class="port-list">
+                  ${this.localhostPorts.map(
+                    (port) => html`
+                      <article class="port-card">
+                        <div class="port-meta">
+                          <strong>localhost:${port}</strong>
+                          ${this.defaultLocalhostPort === port
+                            ? html`<span class="badge">默认</span>`
+                            : null}
+                        </div>
+                        <div class="port-actions">
+                          ${this.defaultLocalhostPort === port
+                            ? html`
+                                <button class="success" disabled>
+                                  默认端口
+                                </button>
+                              `
+                            : html`
+                                <button
+                                  class="success"
+                                  @click=${() => this.setDefaultLocalhostPort(port)}
+                                >
+                                  设为默认
+                                </button>
+                              `}
+                          <button
+                            class="danger"
+                            @click=${() => this.removeLocalhostPort(port)}
+                          >
+                            删除
+                          </button>
+                        </div>
+                      </article>
+                    `,
+                  )}
+                </div>
+              `}
+          <p class="helper">
+            popup 中会以下拉列表展示这里保存的端口，并默认选中当前默认值。
+          </p>
         </section>
 
         <section class="panel">
@@ -274,7 +439,7 @@ export class OptionsApp extends LitElement {
             <button class="secondary" @click=${() => this.openImportPicker('replace')}>
               覆盖导入
             </button>
-            <button class="primary" @click=${this.saveAll}>保存自定义配置</button>
+            <button class="primary" @click=${this.saveAll}>保存全部配置</button>
             <button class="secondary" @click=${this.restoreDefaults}>清空全部配置</button>
           </div>
           ${this.message ? html`<p class="message">${this.message}</p>` : null}
@@ -288,39 +453,36 @@ export class OptionsApp extends LitElement {
       <article class="config-card">
         <label class="field field-storage">
           <span>Storage 类型</span>
-          <select
+          <app-select
+            .options=${this.storageTypeOptions}
             .value=${item.storageType}
-            @change=${(event: Event) =>
+            @value-change=${(event: Event) =>
               this.updateCustomItem(
                 index,
                 'storageType',
-                (event.target as HTMLSelectElement).value,
+                (event as CustomEvent<string>).detail,
               )}
-          >
-            <option value="localStorage">localStorage</option>
-            <option value="sessionStorage">sessionStorage</option>
-            <option value="cookie">cookie</option>
-          </select>
+          ></app-select>
         </label>
         <label class="field field-key">
           <span>Key</span>
-          <input
+          <app-input
             .value=${item.key}
-            @input=${(event: InputEvent) =>
-              this.updateCustomItem(index, 'key', (event.target as HTMLInputElement).value)}
-          />
+            @value-change=${(event: Event) =>
+              this.updateCustomItem(index, 'key', (event as CustomEvent<string>).detail)}
+          ></app-input>
         </label>
         <label class="field field-description">
           <span>说明</span>
-          <input
+          <app-input
             .value=${item.description}
-            @input=${(event: InputEvent) =>
+            @value-change=${(event: Event) =>
               this.updateCustomItem(
                 index,
                 'description',
-                (event.target as HTMLInputElement).value,
+                (event as CustomEvent<string>).detail,
               )}
-          />
+          ></app-input>
         </label>
         <div class="field field-action">
           <span>操作</span>
@@ -328,6 +490,14 @@ export class OptionsApp extends LitElement {
         </div>
       </article>
     `
+  }
+
+  private get storageTypeOptions(): SelectOption[] {
+    return [
+      { label: 'localStorage', value: 'localStorage' },
+      { label: 'sessionStorage', value: 'sessionStorage' },
+      { label: 'cookie', value: 'cookie' },
+    ]
   }
 
   static styles = css`
@@ -369,7 +539,8 @@ export class OptionsApp extends LitElement {
     .eyebrow,
     .lead,
     .empty,
-    .message {
+    .message,
+    .helper {
       color: var(--color-text-muted);
     }
 
@@ -393,14 +564,19 @@ export class OptionsApp extends LitElement {
     }
 
     .section-head,
-    .actions {
+    .actions,
+    .port-editor,
+    .port-card,
+    .port-meta,
+    .port-actions {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
     }
 
-    .list {
+    .list,
+    .port-list {
       display: grid;
       gap: 12px;
       margin-top: 14px;
@@ -418,13 +594,32 @@ export class OptionsApp extends LitElement {
       align-items: start;
     }
 
-    .config-card {
-      grid-template-columns: 180px minmax(220px, 1.1fr) minmax(260px, 1.4fr) 110px;
-      align-items: start;
+    .port-editor {
+      margin-top: 14px;
+      align-items: end;
+      justify-content: flex-start;
+    }
+
+    .port-editor .field {
+      width: min(240px, 100%);
+    }
+
+    .helper {
+      margin-top: 12px;
+      font-size: 13px;
+    }
+
+    .config-card,
+    .port-card {
       border: 1px solid var(--color-border);
       border-radius: 14px;
       background: var(--color-surface-muted);
       padding: 14px;
+    }
+
+    .config-card {
+      grid-template-columns: 180px minmax(220px, 1.1fr) minmax(260px, 1.4fr) 110px;
+      align-items: start;
     }
 
     .badge {
@@ -459,26 +654,14 @@ export class OptionsApp extends LitElement {
       align-self: end;
     }
 
-    input,
-    select,
     button {
       font: inherit;
-    }
-
-    input,
-    select {
-      width: 100%;
-      box-sizing: border-box;
-      border: 1px solid var(--color-border-strong);
-      border-radius: 10px;
-      padding: 10px 12px;
-      background: var(--color-surface);
-      color: var(--color-text-strong);
     }
 
     .actions {
       margin-top: 16px;
       justify-content: flex-start;
+      flex-wrap: wrap;
     }
 
     button {
@@ -489,7 +672,7 @@ export class OptionsApp extends LitElement {
       transition:
         background-color 0.18s ease,
         color 0.18s ease,
-        border-color 0.18s ease;
+        opacity 0.18s ease;
     }
 
     .primary {
@@ -506,14 +689,19 @@ export class OptionsApp extends LitElement {
     .danger {
       background: var(--color-danger-bg);
       color: var(--color-danger-text);
+      font-weight: 600;
     }
 
-    .field-action .danger {
-      width: 100%;
+    .success {
+      background: var(--color-success-bg);
+      color: var(--color-success-text);
+      border: 1px solid var(--color-success-border);
+      font-weight: 600;
     }
 
     .message {
-      margin-top: 12px;
+      margin-top: 14px;
+      font-size: 13px;
     }
 
     .visually-hidden {
@@ -528,14 +716,28 @@ export class OptionsApp extends LitElement {
       border: 0;
     }
 
-    @media (max-width: 820px) {
+    @media (max-width: 900px) {
       .editor-grid,
       .config-card {
         grid-template-columns: 1fr;
       }
 
-      .field-action {
-        align-self: stretch;
+      .section-head,
+      .port-editor {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .port-editor .field,
+      .port-actions {
+        max-width: none;
+        width: 100%;
+      }
+
+      .port-card,
+      .port-meta {
+        align-items: flex-start;
+        flex-direction: column;
       }
     }
   `

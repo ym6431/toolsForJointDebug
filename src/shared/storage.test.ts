@@ -5,22 +5,32 @@ import {
   ensureStorageInitialized,
   getCustomConfig,
   getDatasets,
+  getDefaultLocalhostPort,
+  getLocalhostPorts,
   resetCustomConfig,
   saveCustomConfig,
   saveDataset,
+  saveDefaultLocalhostPort,
+  saveLocalhostTargetConfig,
 } from './storage'
 import type { ConfigItem, Dataset } from './types'
 
 type StorageSnapshot = {
   datasets: Dataset[]
   customConfig: ConfigItem[]
+  localhostPorts: string[]
+  defaultLocalhostPort: string
+  localhostPort?: string
 }
 
 describe('shared storage', () => {
   let snapshot: StorageSnapshot
 
   beforeEach(() => {
-    snapshot = structuredClone(DEFAULT_STORAGE_STATE)
+    snapshot = structuredClone({
+      ...DEFAULT_STORAGE_STATE,
+      localhostPort: '',
+    })
 
     globalThis.chrome = {
       storage: {
@@ -30,6 +40,9 @@ describe('shared storage', () => {
               return {
                 [STORAGE_KEYS.datasets]: snapshot.datasets,
                 [STORAGE_KEYS.customConfig]: snapshot.customConfig,
+                [STORAGE_KEYS.localhostPorts]: snapshot.localhostPorts,
+                [STORAGE_KEYS.defaultLocalhostPort]: snapshot.defaultLocalhostPort,
+                [STORAGE_KEYS.legacyLocalhostPort]: snapshot.localhostPort,
               }
             }
 
@@ -38,6 +51,12 @@ describe('shared storage', () => {
                 snapshot.datasets ?? keys[STORAGE_KEYS.datasets],
               [STORAGE_KEYS.customConfig]:
                 snapshot.customConfig ?? keys[STORAGE_KEYS.customConfig],
+              [STORAGE_KEYS.localhostPorts]:
+                snapshot.localhostPorts ?? keys[STORAGE_KEYS.localhostPorts],
+              [STORAGE_KEYS.defaultLocalhostPort]:
+                snapshot.defaultLocalhostPort ?? keys[STORAGE_KEYS.defaultLocalhostPort],
+              [STORAGE_KEYS.legacyLocalhostPort]:
+                snapshot.localhostPort ?? keys[STORAGE_KEYS.legacyLocalhostPort],
             }
           }),
           set: vi.fn(async (items: Record<string, unknown>) => {
@@ -68,6 +87,8 @@ describe('shared storage', () => {
     expect(chrome.storage.local.set).toHaveBeenCalledWith({
       [STORAGE_KEYS.datasets]: [],
       [STORAGE_KEYS.customConfig]: [],
+      [STORAGE_KEYS.localhostPorts]: [],
+      [STORAGE_KEYS.defaultLocalhostPort]: '',
     })
   })
 
@@ -110,6 +131,35 @@ describe('shared storage', () => {
       { storageType: 'localStorage', key: 'theme', value: 'dark' },
     ])
     expect(snapshot.datasets[0]).toEqual(dataset)
+  })
+
+  it('saves localhost ports and default port with normalization', async () => {
+    const saved = await saveLocalhostTargetConfig(
+      [' 05173 ', '3000', '5173', 'abc'],
+      '3000',
+    )
+
+    expect(saved).toEqual({
+      localhostPorts: ['5173', '3000'],
+      defaultLocalhostPort: '3000',
+    })
+    expect(await getLocalhostPorts()).toEqual(['5173', '3000'])
+    expect(await getDefaultLocalhostPort()).toBe('3000')
+  })
+
+  it('keeps default port inside configured list when saving from popup', async () => {
+    snapshot.localhostPorts = ['5173', '3000']
+    snapshot.defaultLocalhostPort = '5173'
+
+    expect(await saveDefaultLocalhostPort('3000')).toBe('3000')
+    expect(await saveDefaultLocalhostPort('9999')).toBe('5173')
+  })
+
+  it('migrates legacy single localhost port into array config', async () => {
+    snapshot.localhostPort = '05173'
+
+    expect(await getLocalhostPorts()).toEqual(['5173'])
+    expect(await getDefaultLocalhostPort()).toBe('5173')
   })
 
   it('returns datasets sorted by createdAt descending', async () => {

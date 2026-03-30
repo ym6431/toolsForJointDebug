@@ -3,6 +3,8 @@ import {
   dedupeConfig,
   dedupeDatasetItems,
   formatDisplayHost,
+  normalizePort,
+  normalizePortList,
   previewValue,
   toRecordKey,
 } from './utils'
@@ -42,6 +44,21 @@ describe('shared utils', () => {
   it('truncates long preview values', () => {
     expect(previewValue('1234567890', 5)).toBe('12345...')
     expect(previewValue('short', 10)).toBe('short')
+  })
+
+  it('normalizes valid ports and rejects invalid values', () => {
+    expect(normalizePort(' 05173 ')).toBe('5173')
+    expect(normalizePort('65535')).toBe('65535')
+    expect(normalizePort('0')).toBe('')
+    expect(normalizePort('65536')).toBe('')
+    expect(normalizePort('abc')).toBe('')
+  })
+
+  it('normalizes and dedupes port lists', () => {
+    expect(normalizePortList([' 05173 ', '3000', '5173', 'abc'])).toEqual([
+      '5173',
+      '3000',
+    ])
   })
 
   it('formats source urls into trimmed hosts', () => {

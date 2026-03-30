@@ -49,7 +49,6 @@ window.addEventListener(BRIDGE_REQUEST_EVENT, (event) => {
 })
 
 function collectItems(config: ConfigItem[]): DatasetItem[] {
-  const cookies = readCookies()
   const collectedItems: DatasetItem[] = []
 
   config.forEach((item) => {
@@ -81,15 +80,7 @@ function collectItems(config: ConfigItem[]): DatasetItem[] {
       return
     }
 
-    const value = cookies.get(item.key)
-
-    if (value !== undefined) {
-      collectedItems.push({
-        storageType: item.storageType,
-        key: item.key,
-        value,
-      })
-    }
+    return
   })
 
   return collectedItems
@@ -120,29 +111,6 @@ function applyItems(items: DatasetItem[]) {
   })
 
   return { imported, failed }
-}
-
-function readCookies() {
-  const cookieMap = new Map<string, string>()
-
-  document.cookie
-    .split(';')
-    .map((entry) => entry.trim())
-    .filter(Boolean)
-    .forEach((entry) => {
-      const separatorIndex = entry.indexOf('=')
-
-      if (separatorIndex === -1) {
-        return
-      }
-
-      const key = decodeURIComponent(entry.slice(0, separatorIndex))
-      const value = decodeURIComponent(entry.slice(separatorIndex + 1))
-
-      cookieMap.set(key, value)
-    })
-
-  return cookieMap
 }
 
 function dispatchResponse(detail: PageBridgeResponse) {

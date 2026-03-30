@@ -40,16 +40,26 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
 async function collectExportableItems(
   config: ConfigItem[],
 ): Promise<ExportScanResponse> {
-  const response = await sendBridgeRequest({
-    type: 'COLLECT_EXPORTABLE_ITEMS',
-    config,
-  })
+  const storageConfig = config.filter((item) => item.storageType !== 'cookie')
+  const cookieKeys = config
+    .filter((item) => item.storageType === 'cookie')
+    .map((item) => item.key)
 
-  if (!response.ok || response.type !== 'COLLECT_EXPORTABLE_ITEMS') {
-    throw new Error(response.ok ? '页面返回了未知的读取结果。' : response.error)
+  const [storageItems, cookieItems] = await Promise.all([
+    collectStorageItems(storageConfig),
+    collectCookieItems(cookieKeys),
+  ])
+  const itemMap = new Map(
+    [...storageItems, ...cookieItems].map((item) => [toItemKey(item), item]),
+  )
+
+  return {
+    items: config.flatMap((item) => {
+      const collectedItem = itemMap.get(toItemKey(item))
+
+      return collectedItem ? [collectedItem] : []
+    }),
   }
-
-  return { items: response.items }
 }
 
 async function applyImportItems(
@@ -68,4 +78,43 @@ async function applyImportItems(
     imported: response.imported,
     failed: response.failed,
   }
+}
+
+async function collectStorageItems(config: ConfigItem[]): Promise<DatasetItem[]> {
+  if (config.length === 0) {
+    return []
+  }
+
+  const response = await sendBridgeRequest({
+    type: 'COLLECT_EXPORTABLE_ITEMS',
+    config,
+  })
+
+  if (!response.ok || response.type !== 'COLLECT_EXPORTABLE_ITEMS') {
+    throw new Error(response.ok ? '页面返回了未知的读取结果。' : response.error)
+  }
+
+  return response.items
+}
+
+async function collectCookieItems(keys: string[]): Promise<DatasetItem[]> {
+  if (keys.length === 0) {
+    return []
+  }
+
+  const response = (await chrome.runtime.sendMessage({
+    type: 'READ_COOKIES',
+    url: window.location.href,
+    keys,
+  })) as { items?: DatasetItem[]; error?: string }
+
+  if (response.error) {
+    throw new Error(response.error)
+  }
+
+  return response.items ?? []
+}
+
+function toItemKey(item: Pick<ConfigItem, 'storageType' | 'key'>) {
+  return `${item.storageType}:${item.key}`
 }

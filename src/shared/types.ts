@@ -41,6 +41,8 @@ export interface SaveDatasetInput {
 export interface AppStorageState {
   datasets: Dataset[]
   customConfig: ConfigItem[]
+  localhostPorts: string[]
+  defaultLocalhostPort: string
 }
 
 export interface ExportScanResponse {
@@ -56,6 +58,8 @@ export type BackgroundMessage =
   | { type: 'GET_ACTIVE_TAB' }
   | { type: 'OPEN_OPTIONS_PAGE' }
   | { type: 'RELOAD_TAB'; tabId: number }
+  | { type: 'READ_COOKIES'; url: string; keys: string[] }
+  | { type: 'OPEN_LOCALHOST_AND_APPLY_ITEMS'; port: string; items: DatasetItem[] }
 
 export type ContentMessage =
   | { type: 'COLLECT_EXPORTABLE_ITEMS'; config: ConfigItem[] }

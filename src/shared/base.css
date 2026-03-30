@@ -23,6 +23,7 @@
   --color-danger-text: #b91c1c;
   --color-success-bg: #f0fdf4;
   --color-success-border: #bbf7d0;
+  --color-success-text: #166534;
   --color-error-bg: #fef2f2;
   --color-error-border: #fecaca;
   --color-badge-bg: #e5e7eb;
@@ -51,6 +52,7 @@
     --color-danger-text: #fca5a5;
     --color-success-bg: #152a22;
     --color-success-border: #24543f;
+    --color-success-text: #86efac;
     --color-error-bg: #3a1f24;
     --color-error-border: #7f1d1d;
     --color-badge-bg: #374151;

@@ -1,5 +1,5 @@
 import { ensureStorageInitialized } from './shared/storage'
-import type { BackgroundMessage, PageInfo } from './shared/types'
+import type { BackgroundMessage, DatasetItem, PageInfo } from './shared/types'
 
 chrome.runtime.onInstalled.addListener(() => {
   void ensureStorageInitialized()
@@ -47,6 +47,31 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
     return true
   }
 
+  if (payload.type === 'READ_COOKIES') {
+    void readCookies(payload.url, payload.keys)
+      .then((items) => sendResponse({ items }))
+      .catch((error: unknown) => {
+        sendResponse({
+          error: error instanceof Error ? error.message : '读取 Cookie 失败。',
+        })
+      })
+
+    return true
+  }
+
+  if (payload.type === 'OPEN_LOCALHOST_AND_APPLY_ITEMS') {
+    void openLocalhostAndApplyItems(payload.port, payload.items)
+      .then((result) => sendResponse(result))
+      .catch((error: unknown) => {
+        sendResponse({
+          error:
+            error instanceof Error ? error.message : '打开并注入 localhost 页面失败。',
+        })
+      })
+
+    return true
+  }
+
   return false
 })
 
@@ -62,4 +87,135 @@ async function getActiveTab(): Promise<PageInfo> {
     url: tab.url,
     title: tab.title ?? 'Untitled tab',
   }
+}
+
+async function readCookies(url: string, keys: string[]): Promise<DatasetItem[]> {
+  const targetKeys = new Set(keys)
+  const cookies = await chrome.cookies.getAll({ url })
+  const cookieMap = new Map<string, string>()
+
+  cookies.forEach((cookie) => {
+    if (cookie.httpOnly || !targetKeys.has(cookie.name) || cookieMap.has(cookie.name)) {
+      return
+    }
+
+    cookieMap.set(cookie.name, cookie.value)
+  })
+
+  return keys.flatMap((key) => {
+    const value = cookieMap.get(key)
+
+    return value === undefined
+      ? []
+      : [
+          {
+            storageType: 'cookie' as const,
+            key,
+            value,
+          },
+        ]
+  })
+}
+
+async function openLocalhostAndApplyItems(port: string, items: DatasetItem[]) {
+  const targetUrl = `http://localhost:${port}/`
+  const tab = await chrome.tabs.create({
+    url: targetUrl,
+    active: true,
+  })
+
+  if (!tab.id) {
+    throw new Error('无法打开 localhost 目标页。')
+  }
+
+  try {
+    const response = await tryApplyItemsToTab(tab.id, items)
+
+    return {
+      ok: response.failed.length === 0,
+      message:
+        response.failed.length === 0
+          ? `已打开 ${targetUrl}，并成功注入 ${response.imported} 项。`
+          : `已打开 ${targetUrl}，成功注入 ${response.imported} 项，另有 ${response.failed.length} 项失败。`,
+    }
+  } catch {
+    const cookieItems = items.filter((item) => item.storageType === 'cookie')
+
+    if (cookieItems.length === 0) {
+      return {
+        ok: false,
+        message: `已打开 ${targetUrl}，但页面未能完成状态注入，且当前没有可回退注入的 cookie。`,
+      }
+    }
+
+    const injectedCount = await applyCookiesToUrl(targetUrl, cookieItems)
+
+    return {
+      ok: injectedCount > 0,
+      message:
+        injectedCount > 0
+          ? `已打开 ${targetUrl}。页面侧存储注入不可用，已回退注入 ${injectedCount} 个 cookie。`
+          : `已打开 ${targetUrl}，但页面侧存储注入不可用，cookie 回退注入也未成功。`,
+    }
+  }
+}
+
+async function tryApplyItemsToTab(tabId: number, items: DatasetItem[]) {
+  const maxAttempts = 20
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    try {
+      const response = (await chrome.tabs.sendMessage(tabId, {
+        type: 'APPLY_IMPORT_ITEMS',
+        items,
+      })) as { imported?: number; failed?: string[]; error?: string }
+
+      if (response.error) {
+        throw new Error(response.error)
+      }
+
+      return {
+        imported: response.imported ?? 0,
+        failed: response.failed ?? [],
+      }
+    } catch (error) {
+      if (attempt === maxAttempts - 1) {
+        throw error
+      }
+
+      await sleep(500)
+    }
+  }
+
+  throw new Error('localhost 页面状态注入超时。')
+}
+
+async function applyCookiesToUrl(url: string, items: DatasetItem[]) {
+  let injectedCount = 0
+
+  for (const item of items) {
+    try {
+      const cookie = await chrome.cookies.set({
+        url,
+        name: item.key,
+        value: item.value,
+        path: '/',
+        sameSite: 'lax',
+      })
+
+      if (cookie) {
+        injectedCount += 1
+      }
+    } catch {
+      continue
+    }
+  }
+
+  return injectedCount
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
 }

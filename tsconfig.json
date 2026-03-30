@@ -5,7 +5,11 @@
     "useDefineForClassFields": false,
     "module": "ESNext",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "types": ["vite/client", "@crxjs/vite-plugin/client"],
+    "types": [
+      "vite/client",
+      "@crxjs/vite-plugin/client",
+      "vitest-environment-web-ext/types"
+    ],
     "skipLibCheck": true,
 
     /* Bundler mode */
@@ -23,5 +27,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src", "vite.config.ts"]
+  "include": ["src", "test", "vite.config.ts", "vitest.e2e.config.ts"]
 }

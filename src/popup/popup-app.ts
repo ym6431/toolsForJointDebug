@@ -2,8 +2,11 @@ import { LitElement, css, html, nothing } from 'lit'
 import { customElement, state } from 'lit/decorators.js'
 import {
   deleteDataset,
+  getDefaultLocalhostPort,
   getDatasets,
   getCustomConfig,
+  getLocalhostPorts,
+  saveDefaultLocalhostPort,
   saveDataset,
 } from '../shared/storage'
 import type {
@@ -12,21 +15,23 @@ import type {
   OperationResult,
   PageInfo,
 } from '../shared/types'
-import {
-  formatDisplayHost,
-  formatTimestamp,
-  previewValue,
-  toRecordKey,
-} from '../shared/utils'
+import { formatDisplayHost, toRecordKey } from '../shared/utils'
+import './popup-export-panel'
+import './popup-import-panel'
 
 interface BackgroundResponse {
   error?: string
 }
 
+type PopupMode = 'export' | 'import'
+
 @customElement('popup-app')
 export class PopupApp extends LitElement {
   @state()
   private pageInfo: PageInfo | null = null
+
+  @state()
+  private mode: PopupMode = 'export'
 
   @state()
   private datasets: Dataset[] = []
@@ -45,6 +50,12 @@ export class PopupApp extends LitElement {
 
   @state()
   private datasetName = ''
+
+  @state()
+  private localhostPorts: string[] = []
+
+  @state()
+  private selectedLocalhostPort = ''
 
   @state()
   private result: OperationResult | null = null
@@ -67,13 +78,18 @@ export class PopupApp extends LitElement {
     this.loading = true
 
     try {
-      const [pageInfo, datasets] = await Promise.all([
+      const [pageInfo, datasets, localhostPorts, defaultLocalhostPort] = await Promise.all([
         this.getActiveTab(),
         getDatasets(),
+        getLocalhostPorts(),
+        getDefaultLocalhostPort(),
       ])
 
       this.pageInfo = pageInfo
+      this.mode = getDefaultMode(pageInfo.url)
       this.datasets = datasets
+      this.localhostPorts = localhostPorts
+      this.selectedLocalhostPort = defaultLocalhostPort
 
       if (datasets[0]) {
         this.selectedDatasetId = datasets[0].id
@@ -105,6 +121,10 @@ export class PopupApp extends LitElement {
 
   private get selectedDataset() {
     return this.datasets.find((dataset) => dataset.id === this.selectedDatasetId) ?? null
+  }
+
+  private handleModeChange(mode: PopupMode) {
+    this.mode = mode
   }
 
   private async handleScan() {
@@ -149,7 +169,19 @@ export class PopupApp extends LitElement {
     }
   }
 
-  private toggleExportItem(item: DatasetItem, checked: boolean) {
+  private handleDatasetNameChange(event: Event) {
+    this.datasetName = (event as CustomEvent<string>).detail
+  }
+
+  private async handleLocalhostPortChange(event: Event) {
+    const port = (event as CustomEvent<string>).detail
+
+    this.selectedLocalhostPort = port
+    this.selectedLocalhostPort = await saveDefaultLocalhostPort(port)
+  }
+
+  private handleExportToggle(event: Event) {
+    const { item, checked } = (event as CustomEvent<ToggleItemDetail>).detail
     const next = new Set(this.selectedExportKeys)
     const recordKey = toRecordKey(item.storageType, item.key)
 
@@ -162,7 +194,8 @@ export class PopupApp extends LitElement {
     this.selectedExportKeys = next
   }
 
-  private toggleImportItem(item: DatasetItem, checked: boolean) {
+  private handleImportToggle(event: Event) {
+    const { item, checked } = (event as CustomEvent<ToggleItemDetail>).detail
     const next = new Set(this.selectedImportKeys)
     const recordKey = toRecordKey(item.storageType, item.key)
 
@@ -176,40 +209,60 @@ export class PopupApp extends LitElement {
   }
 
   private async handleExport() {
-    if (!this.pageInfo) {
+    const dataset = await this.saveSelectedDataset()
+
+    if (!dataset) {
       return
     }
 
-    const selectedItems = this.exportItems.filter((item) =>
-      this.selectedExportKeys.has(toRecordKey(item.storageType, item.key)),
-    )
-
-    if (selectedItems.length === 0) {
-      this.result = {
-        ok: false,
-        message: '请至少选择一个导出项。',
-      }
-      return
-    }
-
-    const dataset = await saveDataset({
-      datasetName: this.datasetName,
-      sourceUrl: this.pageInfo.url,
-      items: selectedItems,
-    })
-
-    this.datasets = await getDatasets()
-    this.selectedDatasetId = dataset.id
-    this.selectedImportKeys = new Set(
-      dataset.items.map((item) => toRecordKey(item.storageType, item.key)),
-    )
     this.result = {
       ok: true,
       message: `已保存数据集“${dataset.datasetName}”。`,
     }
   }
 
-  private handleDatasetChange(datasetId: string) {
+  private async handleSaveAndInject() {
+    if (!this.selectedLocalhostPort) {
+      this.result = {
+        ok: false,
+        message: '请先在 options 中配置可用的 localhost 端口。',
+      }
+      return
+    }
+
+    const dataset = await this.saveSelectedDataset()
+
+    if (!dataset) {
+      return
+    }
+
+    try {
+      const response = (await chrome.runtime.sendMessage({
+        type: 'OPEN_LOCALHOST_AND_APPLY_ITEMS',
+        port: this.selectedLocalhostPort,
+        items: dataset.items,
+      })) as { ok?: boolean; message?: string; error?: string }
+
+      if (response.error) {
+        throw new Error(response.error)
+      }
+
+      this.result = {
+        ok: response.ok ?? true,
+        message:
+          response.message
+          ?? `已保存数据集“${dataset.datasetName}”，并开始注入 localhost:${this.selectedLocalhostPort}。`,
+      }
+    } catch (error) {
+      this.result = {
+        ok: false,
+        message: error instanceof Error ? error.message : '打开并注入 localhost 失败。',
+      }
+    }
+  }
+
+  private handleDatasetChange(event: Event) {
+    const datasetId = (event as CustomEvent<string>).detail
     this.selectedDatasetId = datasetId
     const dataset = this.datasets.find((item) => item.id === datasetId)
 
@@ -218,7 +271,9 @@ export class PopupApp extends LitElement {
     )
   }
 
-  private async handleDeleteDataset(datasetId: string) {
+  private async handleDeleteDataset(event: Event) {
+    const datasetId = (event as CustomEvent<string>).detail
+
     await deleteDataset(datasetId)
     this.datasets = await getDatasets()
 
@@ -313,7 +368,7 @@ export class PopupApp extends LitElement {
   }
 
   render() {
-    const dataset = this.selectedDataset
+    const localhostPage = this.pageInfo ? isLocalhostPage(this.pageInfo.url) : false
 
     return html`
       <main>
@@ -328,110 +383,66 @@ export class PopupApp extends LitElement {
         ${this.loading
           ? html`<section class="panel"><p>正在加载扩展状态...</p></section>`
           : html`
-              <div class="workspace">
-                <div class="column">
-                  <section class="panel">
-                    <div class="section-head">
-                      <h2>当前页面</h2>
-                      <button @click=${this.handleScan} ?disabled=${this.scanning}>
-                        ${this.scanning ? '扫描中...' : '扫描可导出项'}
-                      </button>
-                    </div>
-                    <p class="page-title">${this.pageInfo?.title ?? '未识别页面'}</p>
-                    <p class="page-url">${this.pageInfo?.url ?? '无法读取当前标签页 URL'}</p>
-                  </section>
-
-                  <section class="panel">
-                    <div class="section-head">
-                      <h2>可导出项</h2>
-                      <span>${this.exportItems.length} 项</span>
-                    </div>
-                    <label class="stack">
-                      <span>数据集名称</span>
-                      <input
-                        .value=${this.datasetName}
-                        @input=${(event: InputEvent) => {
-                          this.datasetName = (event.target as HTMLInputElement).value
-                        }}
-                        placeholder="例如：线上首页状态"
-                      />
-                    </label>
-                    ${this.exportItems.length === 0
-                      ? html`<p class="empty">扫描后会在这里显示命中的配置项。</p>`
-                      : html`${this.exportItems.map((item) => this.renderItemRow(item, 'export'))}`}
-                    <button class="primary wide" @click=${this.handleExport}>
-                      保存选中项为数据集
+              <section class="mode-panel">
+                <div class="mode-head">
+                  <div>
+                    <h2>工作模式</h2>
+                    <p class="mode-tip">
+                      ${localhostPage
+                        ? '检测到 localhost 页面，默认打开导入模式。'
+                        : '当前页面不是 localhost，默认打开导出模式。'}
+                    </p>
+                  </div>
+                  <div class="mode-switch" role="tablist" aria-label="切换导入导出模式">
+                    <button
+                      class=${this.mode === 'export' ? 'mode-button active' : 'mode-button'}
+                      @click=${() => this.handleModeChange('export')}
+                    >
+                      导出模式
                     </button>
-                  </section>
+                    <button
+                      class=${this.mode === 'import' ? 'mode-button active' : 'mode-button'}
+                      @click=${() => this.handleModeChange('import')}
+                    >
+                      导入模式
+                    </button>
+                  </div>
                 </div>
+              </section>
 
-                <div class="column">
-                  <section class="panel">
-                    <div class="section-head">
-                      <h2>已保存数据集</h2>
-                      <span>${this.datasets.length} 组</span>
-                    </div>
-                    ${this.datasets.length === 0
-                      ? html`<p class="empty">还没有已保存的数据集。</p>`
-                      : html`
-                          <div class="dataset-list">
-                            ${this.datasets.map(
-                              (item) => html`
-                                <label class="dataset-card">
-                                  <input
-                                    type="radio"
-                                    name="dataset"
-                                    .value=${item.id}
-                                    .checked=${this.selectedDatasetId === item.id}
-                                    @change=${() => this.handleDatasetChange(item.id)}
-                                  />
-                                  <div class="dataset-meta">
-                                    <strong>${item.datasetName}</strong>
-                                    <span>${formatTimestamp(item.createdAt)}</span>
-                                    <span>${formatDisplayHost(item.sourceUrl)}</span>
-                                  </div>
-                                  <button
-                                    class="ghost"
-                                    @click=${() => this.handleDeleteDataset(item.id)}
-                                  >
-                                    删除
-                                  </button>
-                                </label>
-                              `,
-                            )}
-                          </div>
-                        `}
-                  </section>
-
-                  <section class="panel">
-                    <div class="section-head">
-                      <h2>导入预览</h2>
-                      <button
-                        class="secondary"
-                        @click=${this.handleRefreshPage}
-                        ?disabled=${!this.pageInfo}
-                      >
-                        刷新页面
-                      </button>
-                    </div>
-                    ${dataset
-                      ? html`
-                          <p class="dataset-source">
-                            ${dataset.datasetName} · 来源 ${formatDisplayHost(dataset.sourceUrl)}
-                          </p>
-                          ${dataset.items.map((item) => this.renderItemRow(item, 'import'))}
-                          <button
-                            class="primary wide"
-                            @click=${this.handleImport}
-                            ?disabled=${this.importing}
-                          >
-                            ${this.importing ? '导入中...' : '确认导入选中项'}
-                          </button>
-                        `
-                      : html`<p class="empty">选择一个数据集后可预览并导入。</p>`}
-                  </section>
-                </div>
-              </div>
+              ${this.mode === 'export'
+                ? html`
+                    <popup-export-panel
+                      .pageInfo=${this.pageInfo}
+                      .scanning=${this.scanning}
+                      .exportItems=${this.exportItems}
+                      .selectedKeys=${this.selectedExportKeys}
+                      .datasetName=${this.datasetName}
+                      .localhostPorts=${this.localhostPorts}
+                      .selectedLocalhostPort=${this.selectedLocalhostPort}
+                      @scan-request=${this.handleScan}
+                      @dataset-name-change=${this.handleDatasetNameChange}
+                      @localhost-port-change=${this.handleLocalhostPortChange}
+                      @export-item-toggle=${this.handleExportToggle}
+                      @export-request=${this.handleExport}
+                      @save-and-inject-request=${this.handleSaveAndInject}
+                    ></popup-export-panel>
+                  `
+                : html`
+                    <popup-import-panel
+                      .pageInfo=${this.pageInfo}
+                      .datasets=${this.datasets}
+                      .selectedDataset=${this.selectedDataset}
+                      .selectedDatasetId=${this.selectedDatasetId}
+                      .selectedKeys=${this.selectedImportKeys}
+                      .importing=${this.importing}
+                      @dataset-select=${this.handleDatasetChange}
+                      @dataset-delete=${this.handleDeleteDataset}
+                      @import-item-toggle=${this.handleImportToggle}
+                      @import-request=${this.handleImport}
+                      @refresh-request=${this.handleRefreshPage}
+                    ></popup-import-panel>
+                  `}
 
               ${this.result
                 ? html`
@@ -453,35 +464,36 @@ export class PopupApp extends LitElement {
     `
   }
 
-  private renderItemRow(item: DatasetItem, mode: 'export' | 'import') {
-    const checkedSet =
-      mode === 'export' ? this.selectedExportKeys : this.selectedImportKeys
-    const checked = checkedSet.has(toRecordKey(item.storageType, item.key))
+  private async saveSelectedDataset() {
+    if (!this.pageInfo) {
+      return null
+    }
 
-    return html`
-      <label class="item-row">
-        <input
-          type="checkbox"
-          .checked=${checked}
-          @change=${(event: Event) => {
-            const nextChecked = (event.target as HTMLInputElement).checked
+    const selectedItems = this.exportItems.filter((item) =>
+      this.selectedExportKeys.has(toRecordKey(item.storageType, item.key)),
+    )
 
-            if (mode === 'export') {
-              this.toggleExportItem(item, nextChecked)
-            } else {
-              this.toggleImportItem(item, nextChecked)
-            }
-          }}
-        />
-        <div class="item-meta">
-          <div class="item-head">
-            <span class="badge">${item.storageType}</span>
-            <strong>${item.key}</strong>
-          </div>
-          <code>${previewValue(item.value)}</code>
-        </div>
-      </label>
-    `
+    if (selectedItems.length === 0) {
+      this.result = {
+        ok: false,
+        message: '请至少选择一个导出项。',
+      }
+      return null
+    }
+
+    const dataset = await saveDataset({
+      datasetName: this.datasetName,
+      sourceUrl: this.pageInfo.url,
+      items: selectedItems,
+    })
+
+    this.datasets = await getDatasets()
+    this.selectedDatasetId = dataset.id
+    this.selectedImportKeys = new Set(
+      dataset.items.map((item) => toRecordKey(item.storageType, item.key)),
+    )
+
+    return dataset
   }
 
   static styles = css`
@@ -503,9 +515,7 @@ export class PopupApp extends LitElement {
     }
 
     header,
-    .section-head,
-    .item-head,
-    .dataset-card {
+    .mode-head {
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -538,7 +548,8 @@ export class PopupApp extends LitElement {
       letter-spacing: 0.08em;
     }
 
-    .panel {
+    .panel,
+    .mode-panel {
       background: var(--color-surface);
       border: 1px solid var(--color-border);
       border-radius: 16px;
@@ -546,175 +557,50 @@ export class PopupApp extends LitElement {
       margin-bottom: 14px;
     }
 
-    .workspace {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 14px;
-      align-items: start;
-    }
-
-    .column {
-      min-width: 0;
-    }
-
-    .stack {
-      display: grid;
-      gap: 6px;
-      margin: 12px 0;
-    }
-
-    .page-title,
-    .dataset-source {
-      font-weight: 600;
-      margin-top: 10px;
-      color: var(--color-text-strong);
-    }
-
-    .page-url {
+    .mode-tip {
       margin-top: 6px;
       color: var(--color-text-muted);
-      word-break: break-all;
       font-size: 12px;
     }
 
-    .item-row,
-    .dataset-card {
-      border: 1px solid var(--color-border);
-      border-radius: 12px;
-      padding: 10px 12px;
-      background: var(--color-surface-muted);
-      margin-top: 10px;
-    }
-
-    .item-row {
-      display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 10px;
-      align-items: start;
-    }
-
-    .item-row input[type='checkbox'],
-    .dataset-card input[type='radio'] {
-      width: 16px;
-      height: 16px;
-      margin: 2px 0 0;
-      padding: 0;
-      flex: none;
-    }
-
-    .item-meta {
-      display: grid;
-      gap: 8px;
-      min-width: 0;
-    }
-
-    .badge {
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--color-badge-text);
-      background: var(--color-badge-bg);
+    .mode-switch {
+      display: inline-grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      padding: 4px;
       border-radius: 999px;
-      padding: 3px 8px;
-    }
-
-    .dataset-meta {
-      display: grid;
+      background: var(--color-secondary-bg);
       gap: 4px;
-      flex: 1;
-      min-width: 0;
+      min-width: 220px;
     }
 
-    .dataset-meta span {
-      color: var(--color-text-muted);
-      font-size: 12px;
-      word-break: break-all;
-    }
-
-    .dataset-meta strong {
-      min-width: 0;
-      word-break: break-word;
-    }
-
-    .dataset-list {
-      display: grid;
-      gap: 10px;
-    }
-
-    input[type='text'],
-    input:not([type]),
-    button {
-      font: inherit;
-    }
-
-    input[type='text'],
-    input:not([type]),
-    input[type='url'],
-    input[type='search'],
-    input[type='number'],
-    textarea,
-    select,
-    input[type='email'],
-    input[type='password'],
-    input[type='date'],
-    input[type='datetime-local'],
-    input[type='month'],
-    input[type='time'],
-    input[type='week'],
-    input[type='tel'],
-    input[type='color'],
-    input[type='range'],
-    input[type='file'],
-    input[type='hidden'],
-    input[type='image'],
-    input[type='button'],
-    input[type='submit'],
-    input[type='reset'] {
-      width: 100%;
-      box-sizing: border-box;
-      border: 1px solid var(--color-border-strong);
-      border-radius: 10px;
-      padding: 10px 12px;
-      background: var(--color-surface);
-      color: var(--color-text-strong);
-    }
-
-    button {
+    .mode-button,
+    .secondary {
       border: none;
-      border-radius: 10px;
+      border-radius: 999px;
       padding: 10px 14px;
+      font: inherit;
       cursor: pointer;
       transition:
         background-color 0.18s ease,
         color 0.18s ease,
-        border-color 0.18s ease,
         opacity 0.18s ease;
     }
 
-    button:disabled {
-      opacity: 0.55;
-      cursor: default;
+    .mode-button {
+      background: transparent;
+      color: var(--color-text-muted);
+      font-weight: 600;
     }
 
-    .primary {
-      background: var(--color-accent);
-      color: var(--color-accent-contrast);
-      font-weight: 700;
+    .mode-button.active {
+      background: var(--color-surface);
+      color: var(--color-text-strong);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
     }
 
     .secondary {
       background: var(--color-secondary-bg);
       color: var(--color-secondary-text);
-    }
-
-    .ghost {
-      background: transparent;
-      color: var(--color-danger-text);
-      padding-inline: 10px;
-    }
-
-    .wide {
-      width: 100%;
-      margin-top: 12px;
     }
 
     .result.ok {
@@ -727,22 +613,6 @@ export class PopupApp extends LitElement {
       background: var(--color-error-bg);
     }
 
-    .empty {
-      color: var(--color-text-muted);
-      margin-top: 12px;
-    }
-
-    code {
-      display: block;
-      white-space: pre-wrap;
-      word-break: break-all;
-      background: var(--color-code-bg);
-      border-radius: 10px;
-      padding: 8px 10px;
-      color: var(--color-code-text);
-      font-size: 12px;
-    }
-
     ul {
       margin: 10px 0 0;
       padding-left: 18px;
@@ -753,9 +623,34 @@ export class PopupApp extends LitElement {
         width: 100%;
       }
 
-      .workspace {
-        grid-template-columns: 1fr;
+      .mode-head {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .mode-switch {
+        width: 100%;
+        min-width: 0;
       }
     }
   `
+}
+
+interface ToggleItemDetail {
+  item: DatasetItem
+  checked: boolean
+}
+
+function getDefaultMode(urlString: string): PopupMode {
+  return isLocalhostPage(urlString) ? 'import' : 'export'
+}
+
+function isLocalhostPage(urlString: string) {
+  try {
+    const hostname = new URL(urlString).hostname.replace(/^\[(.*)\]$/, '$1')
+
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'
+  } catch {
+    return false
+  }
 }
