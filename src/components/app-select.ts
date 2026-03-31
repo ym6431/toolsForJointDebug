@@ -23,17 +23,22 @@ export class AppSelect extends LitElement {
   render() {
     return html`
       <select
-        .value=${this.value}
         ?disabled=${this.disabled}
         @change=${(event: Event) =>
           this.dispatchValueChange((event.target as HTMLSelectElement).value)}
       >
         ${!this.value
-          ? html`<option value="">${this.placeholder}</option>`
+          ? html`<option value="" ?selected=${this.value === ''}>${this.placeholder}</option>`
           : null}
+          
         ${this.options.map(
           (option) => html`
-            <option value=${option.value}>${option.label}</option>
+            <option 
+              value=${option.value}
+              ?selected=${this.value === option.value}
+            >
+              ${option.label}
+            </option>
           `,
         )}
       </select>

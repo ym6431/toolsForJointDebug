@@ -658,6 +658,13 @@ export class OptionsApp extends LitElement {
       font: inherit;
     }
 
+    button:disabled {
+      cursor: not-allowed;
+      background: var(--color-disabled-bg);
+      border: 1px solid var(--color-disabled-border);
+      color: var(--color-disabled-text);
+    }
+
     .actions {
       margin-top: 16px;
       justify-content: flex-start;

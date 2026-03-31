@@ -1,5 +1,25 @@
 export type StorageType = 'localStorage' | 'sessionStorage' | 'cookie'
 
+export type CookieSameSite = 'no_restriction' | 'lax' | 'strict' | 'unspecified'
+
+export interface CookiePartitionKey {
+  topLevelSite?: string
+  hasCrossSiteAncestor?: boolean
+}
+
+export interface CookieMetadata {
+  domain: string
+  hostOnly: boolean
+  path: string
+  secure: boolean
+  httpOnly: boolean
+  sameSite: CookieSameSite
+  session: boolean
+  expirationDate?: number
+  storeId?: string
+  partitionKey?: CookiePartitionKey
+}
+
 export interface ConfigItem {
   storageType: StorageType
   key: string
@@ -10,6 +30,7 @@ export interface DatasetItem {
   storageType: StorageType
   key: string
   value: string
+  cookie?: CookieMetadata
 }
 
 export interface Dataset {
@@ -59,6 +80,7 @@ export type BackgroundMessage =
   | { type: 'OPEN_OPTIONS_PAGE' }
   | { type: 'RELOAD_TAB'; tabId: number }
   | { type: 'READ_COOKIES'; url: string; keys: string[] }
+  | { type: 'APPLY_COOKIES_TO_URL'; url: string; items: DatasetItem[] }
   | { type: 'OPEN_LOCALHOST_AND_APPLY_ITEMS'; port: string; items: DatasetItem[] }
 
 export type ContentMessage =

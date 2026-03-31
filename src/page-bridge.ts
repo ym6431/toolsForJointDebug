@@ -97,7 +97,7 @@ function applyItems(items: DatasetItem[]) {
       } else if (item.storageType === 'sessionStorage') {
         window.sessionStorage.setItem(item.key, item.value)
       } else {
-        document.cookie = `${encodeURIComponent(item.key)}=${encodeURIComponent(item.value)}; path=/; SameSite=Lax`
+        throw new Error('Cookie 写入已改为后台脚本处理。')
       }
 
       imported += 1

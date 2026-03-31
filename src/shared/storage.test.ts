@@ -123,12 +123,42 @@ describe('shared storage', () => {
       items: [
         { storageType: 'localStorage', key: 'theme', value: 'dark' },
         { storageType: 'localStorage', key: 'theme', value: 'light' },
+        {
+          storageType: 'cookie',
+          key: 'locale',
+          value: 'zh-CN',
+          cookie: {
+            domain: '.example.com',
+            hostOnly: false,
+            path: '/',
+            secure: true,
+            httpOnly: true,
+            sameSite: 'strict',
+            session: false,
+            expirationDate: 1_800_000_000,
+          },
+        },
       ],
     })
 
     expect(dataset.datasetName).toBe('Homepage state')
     expect(dataset.items).toEqual([
       { storageType: 'localStorage', key: 'theme', value: 'dark' },
+      {
+        storageType: 'cookie',
+        key: 'locale',
+        value: 'zh-CN',
+        cookie: {
+          domain: '.example.com',
+          hostOnly: false,
+          path: '/',
+          secure: true,
+          httpOnly: true,
+          sameSite: 'strict',
+          session: false,
+          expirationDate: 1_800_000_000,
+        },
+      },
     ])
     expect(snapshot.datasets[0]).toEqual(dataset)
   })

@@ -2,6 +2,7 @@ import { LitElement, css, html } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import type { ChoiceChangeDetail } from '../components/app-choice-card'
 import '../components/app-choice-card'
+import { formatCookieMetadata } from '../shared/cookie-utils'
 import type { Dataset, DatasetItem, PageInfo } from '../shared/types'
 import {
   formatDisplayHost,
@@ -124,6 +125,9 @@ export class PopupImportPanel extends LitElement {
 
   private renderItemRow(item: DatasetItem) {
     const checked = this.selectedKeys.has(toRecordKey(item.storageType, item.key))
+    const cookieMetadata = item.storageType === 'cookie'
+      ? formatCookieMetadata(item.cookie)
+      : ''
 
     return html`
       <app-choice-card
@@ -141,6 +145,9 @@ export class PopupImportPanel extends LitElement {
             <strong>${item.key}</strong>
           </div>
           <code>${previewValue(item.value)}</code>
+          ${cookieMetadata
+            ? html`<p class="cookie-meta">${cookieMetadata}</p>`
+            : null}
         </div>
       </app-choice-card>
     `
@@ -242,6 +249,14 @@ export class PopupImportPanel extends LitElement {
 
     .dataset-meta strong {
       min-width: 0;
+      word-break: break-word;
+    }
+
+    .cookie-meta {
+      margin: 0;
+      font-size: 12px;
+      color: var(--color-text-muted);
+      line-height: 1.5;
       word-break: break-word;
     }
 

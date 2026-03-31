@@ -1,1 +1,1 @@
-/home/my1346/project/aiTest/lit-ex-fro-session/AGENTS.md
+AGENTS.md

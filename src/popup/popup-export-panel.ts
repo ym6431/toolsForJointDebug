@@ -4,6 +4,7 @@ import type { ChoiceChangeDetail } from '../components/app-choice-card'
 import '../components/app-choice-card'
 import '../components/app-input'
 import type { SelectOption } from '../components/app-select'
+import { formatCookieMetadata } from '../shared/cookie-utils'
 import type { DatasetItem, PageInfo } from '../shared/types'
 import { previewValue, toRecordKey } from '../shared/utils'
 import '../components/app-select'
@@ -100,6 +101,9 @@ export class PopupExportPanel extends LitElement {
 
   private renderItemRow(item: DatasetItem) {
     const checked = this.selectedKeys.has(toRecordKey(item.storageType, item.key))
+    const cookieMetadata = item.storageType === 'cookie'
+      ? formatCookieMetadata(item.cookie)
+      : ''
 
     return html`
       <app-choice-card
@@ -117,6 +121,9 @@ export class PopupExportPanel extends LitElement {
             <strong>${item.key}</strong>
           </div>
           <code>${previewValue(item.value)}</code>
+          ${cookieMetadata
+            ? html`<p class="cookie-meta">${cookieMetadata}</p>`
+            : null}
         </div>
       </app-choice-card>
     `
@@ -253,6 +260,14 @@ export class PopupExportPanel extends LitElement {
     .empty {
       color: var(--color-text-muted);
       margin-top: 12px;
+    }
+
+    .cookie-meta {
+      margin: 0;
+      font-size: 12px;
+      color: var(--color-text-muted);
+      line-height: 1.5;
+      word-break: break-word;
     }
 
     code {

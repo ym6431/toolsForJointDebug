@@ -16,9 +16,7 @@
 
 - 所有导出和导入都必须由用户手动触发
 - 数据仅保存在 `chrome.storage.local`
-- 只处理非敏感前端状态
 - 导入前必须可见、可勾选、可确认
-- 不尝试绕过浏览器安全边界
 
 ## 当前功能
 
@@ -152,6 +150,7 @@ Popup 主容器，负责：
 
 - popup 与 tab 的桥接
 - 读取 `chrome.cookies`
+- 按完整属性写入 `cookie`
 - 打开 localhost 目标页
 - 执行自动注入和 cookies 回退注入
 
@@ -194,6 +193,21 @@ interface DatasetItem {
   storageType: StorageType
   key: string
   value: string
+  cookie?: {
+    domain: string
+    hostOnly: boolean
+    path: string
+    secure: boolean
+    httpOnly: boolean
+    sameSite: 'no_restriction' | 'lax' | 'strict' | 'unspecified'
+    session: boolean
+    expirationDate?: number
+    storeId?: string
+    partitionKey?: {
+      topLevelSite?: string
+      hasCrossSiteAncestor?: boolean
+    }
+  }
 }
 
 interface Dataset {
@@ -283,7 +297,7 @@ pnpm exec playwright install chromium
 
 ### 会处理
 
-- 手动导出的非敏感前端状态
+- 手动导出的前端状态
 - `localStorage`
 - `sessionStorage`
 - 普通 `cookie`

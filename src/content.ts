@@ -1,4 +1,5 @@
 import { sendBridgeRequest } from './shared/bridge-client'
+import { isCookieItem } from './shared/cookie-utils'
 import type {
   ConfigItem,
   ContentMessage,
@@ -65,18 +66,65 @@ async function collectExportableItems(
 async function applyImportItems(
   items: DatasetItem[],
 ): Promise<ImportApplyResponse> {
-  const response = await sendBridgeRequest({
-    type: 'APPLY_IMPORT_ITEMS',
-    items,
-  })
+  const storageItems = items.filter((item) => item.storageType !== 'cookie')
+  const cookieItems = items.filter(isCookieItem)
+  let imported = 0
+  const failed: string[] = []
 
-  if (!response.ok || response.type !== 'APPLY_IMPORT_ITEMS') {
-    throw new Error(response.ok ? '页面返回了未知的写入结果。' : response.error)
+  if (storageItems.length > 0) {
+    try {
+      const response = await sendBridgeRequest({
+        type: 'APPLY_IMPORT_ITEMS',
+        items: storageItems,
+      })
+
+      if (!response.ok || response.type !== 'APPLY_IMPORT_ITEMS') {
+        throw new Error(response.ok ? '页面返回了未知的写入结果。' : response.error)
+      }
+
+      imported += response.imported
+      failed.push(...response.failed)
+    } catch (error) {
+      failed.push(
+        ...storageItems.map(
+          (item) =>
+            `${item.storageType}:${item.key} - ${
+              error instanceof Error ? error.message : '写入失败'
+            }`,
+        ),
+      )
+    }
+  }
+
+  if (cookieItems.length > 0) {
+    try {
+      const response = (await chrome.runtime.sendMessage({
+        type: 'APPLY_COOKIES_TO_URL',
+        url: window.location.href,
+        items: cookieItems,
+      })) as ImportApplyResponse & { error?: string }
+
+      if (response.error) {
+        throw new Error(response.error)
+      }
+
+      imported += response.imported
+      failed.push(...response.failed)
+    } catch (error) {
+      failed.push(
+        ...cookieItems.map(
+          (item) =>
+            `cookie:${item.key} - ${
+              error instanceof Error ? error.message : '写入失败'
+            }`,
+        ),
+      )
+    }
   }
 
   return {
-    imported: response.imported,
-    failed: response.failed,
+    imported,
+    failed,
   }
 }
 

@@ -16,9 +16,7 @@ Its purpose is to help developers manually migrate non-sensitive frontend state 
 
 - All export and import actions must be manually triggered by the user.
 - Data must only be stored in `chrome.storage.local`.
-- Only non-sensitive frontend state should be handled.
 - Imported data must remain visible, selectable, and confirmable in the UI.
-- Do not attempt to bypass browser security boundaries.
 - Prefer keeping behavior explicit over clever automation.
 
 ## Current Architecture

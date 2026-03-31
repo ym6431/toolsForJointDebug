@@ -241,7 +241,12 @@ export class PopupApp extends LitElement {
         type: 'OPEN_LOCALHOST_AND_APPLY_ITEMS',
         port: this.selectedLocalhostPort,
         items: dataset.items,
-      })) as { ok?: boolean; message?: string; error?: string }
+      })) as {
+        ok?: boolean
+        message?: string
+        details?: string[]
+        error?: string
+      }
 
       if (response.error) {
         throw new Error(response.error)
@@ -252,6 +257,7 @@ export class PopupApp extends LitElement {
         message:
           response.message
           ?? `已保存数据集“${dataset.datasetName}”，并开始注入 localhost:${this.selectedLocalhostPort}。`,
+        details: response.details,
       }
     } catch (error) {
       this.result = {

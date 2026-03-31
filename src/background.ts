@@ -1,3 +1,8 @@
+import {
+  buildCookieSetDetails,
+  isCookieItem,
+  toCookieMetadata,
+} from './shared/cookie-utils'
 import { ensureStorageInitialized } from './shared/storage'
 import type { BackgroundMessage, DatasetItem, PageInfo } from './shared/types'
 
@@ -59,6 +64,18 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
     return true
   }
 
+  if (payload.type === 'APPLY_COOKIES_TO_URL') {
+    void applyCookiesToUrl(payload.url, payload.items)
+      .then((result) => sendResponse(result))
+      .catch((error: unknown) => {
+        sendResponse({
+          error: error instanceof Error ? error.message : '写入 Cookie 失败。',
+        })
+      })
+
+    return true
+  }
+
   if (payload.type === 'OPEN_LOCALHOST_AND_APPLY_ITEMS') {
     void openLocalhostAndApplyItems(payload.port, payload.items)
       .then((result) => sendResponse(result))
@@ -92,26 +109,27 @@ async function getActiveTab(): Promise<PageInfo> {
 async function readCookies(url: string, keys: string[]): Promise<DatasetItem[]> {
   const targetKeys = new Set(keys)
   const cookies = await chrome.cookies.getAll({ url })
-  const cookieMap = new Map<string, string>()
+  const cookieMap = new Map<string, chrome.cookies.Cookie>()
 
   cookies.forEach((cookie) => {
-    if (cookie.httpOnly || !targetKeys.has(cookie.name) || cookieMap.has(cookie.name)) {
+    if (!targetKeys.has(cookie.name) || cookieMap.has(cookie.name)) {
       return
     }
 
-    cookieMap.set(cookie.name, cookie.value)
+    cookieMap.set(cookie.name, cookie)
   })
 
   return keys.flatMap((key) => {
-    const value = cookieMap.get(key)
+    const cookie = cookieMap.get(key)
 
-    return value === undefined
+    return cookie === undefined
       ? []
       : [
           {
             storageType: 'cookie' as const,
             key,
-            value,
+            value: cookie.value,
+            cookie: toCookieMetadata(cookie),
           },
         ]
   })
@@ -148,14 +166,17 @@ async function openLocalhostAndApplyItems(port: string, items: DatasetItem[]) {
       }
     }
 
-    const injectedCount = await applyCookiesToUrl(targetUrl, cookieItems)
+    const cookieResult = await applyCookiesToUrl(targetUrl, cookieItems)
 
     return {
-      ok: injectedCount > 0,
+      ok: cookieResult.imported > 0 && cookieResult.failed.length === 0,
       message:
-        injectedCount > 0
-          ? `已打开 ${targetUrl}。页面侧存储注入不可用，已回退注入 ${injectedCount} 个 cookie。`
+        cookieResult.imported > 0
+          ? cookieResult.failed.length === 0
+            ? `已打开 ${targetUrl}。页面侧存储注入不可用，已回退注入 ${cookieResult.imported} 个 cookie。`
+            : `已打开 ${targetUrl}。页面侧存储注入不可用，已回退注入 ${cookieResult.imported} 个 cookie，另有 ${cookieResult.failed.length} 个失败。`
           : `已打开 ${targetUrl}，但页面侧存储注入不可用，cookie 回退注入也未成功。`,
+      details: cookieResult.failed,
     }
   }
 }
@@ -191,27 +212,32 @@ async function tryApplyItemsToTab(tabId: number, items: DatasetItem[]) {
 }
 
 async function applyCookiesToUrl(url: string, items: DatasetItem[]) {
-  let injectedCount = 0
+  let imported = 0
+  const failed: string[] = []
 
   for (const item of items) {
+    if (!isCookieItem(item)) {
+      continue
+    }
+
     try {
-      const cookie = await chrome.cookies.set({
-        url,
-        name: item.key,
-        value: item.value,
-        path: '/',
-        sameSite: 'lax',
-      })
+      const cookie = await chrome.cookies.set(buildCookieSetDetails(url, item))
 
       if (cookie) {
-        injectedCount += 1
+        imported += 1
+      } else {
+        failed.push(`cookie:${item.key} - 浏览器未返回写入结果。`)
       }
-    } catch {
-      continue
+    } catch (error) {
+      failed.push(
+        `cookie:${item.key} - ${
+          error instanceof Error ? error.message : '写入失败'
+        }`,
+      )
     }
   }
 
-  return injectedCount
+  return { imported, failed }
 }
 
 function sleep(ms: number) {
