@@ -181,6 +181,12 @@ test('popup 导出模式应加载已保存的默认 localhost 端口', async () 
 
   await popupPage.waitForLoadState('domcontentloaded')
 
+  const exportPanels = popupPage.locator('popup-export-panel .panel')
+  expect(await exportPanels.nth(0).getByRole('button', { name: '保存选中项为数据集' }).isVisible()).toBe(true)
+  expect(
+    await exportPanels.nth(1).getByRole('button', { name: '重新扫描可导出项' }).isVisible(),
+  ).toBe(true)
+
   expect(
     await popupPage
       .getByRole('button', { name: '保存并注入到 localhost:3000' })
@@ -249,7 +255,7 @@ test('popup 应可从源页面导出 cookie 并导入到 localhost 页面', asyn
     await exportPopup.getByRole('button', { name: '导出模式' }).click()
     expect(await exportPopup.getByText(sourceUrl, { exact: true }).isVisible()).toBe(true)
 
-    await exportPopup.getByRole('button', { name: '扫描可导出项' }).click()
+    await exportPopup.getByText('已扫描到 1 个可导出项。').waitFor()
     expect(await exportPopup.getByText('已扫描到 1 个可导出项。').isVisible()).toBe(true)
     expect(await exportPopup.getByText(cookieName, { exact: true }).isVisible()).toBe(true)
 

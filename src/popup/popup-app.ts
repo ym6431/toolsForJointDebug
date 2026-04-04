@@ -76,6 +76,7 @@ export class PopupApp extends LitElement {
 
   private async initialize() {
     this.loading = true
+    let initialMode: PopupMode = 'export'
 
     try {
       const [pageInfo, datasets, localhostPorts, defaultLocalhostPort] = await Promise.all([
@@ -86,7 +87,8 @@ export class PopupApp extends LitElement {
       ])
 
       this.pageInfo = pageInfo
-      this.mode = getDefaultMode(pageInfo.url)
+      initialMode = getDefaultMode(pageInfo.url)
+      this.mode = initialMode
       this.datasets = datasets
       this.localhostPorts = localhostPorts
       this.selectedLocalhostPort = defaultLocalhostPort
@@ -104,6 +106,10 @@ export class PopupApp extends LitElement {
       }
     } finally {
       this.loading = false
+    }
+
+    if (this.pageInfo && initialMode === 'export') {
+      void this.runInitialExportScan()
     }
   }
 
@@ -125,11 +131,19 @@ export class PopupApp extends LitElement {
 
   private handleModeChange(mode: PopupMode) {
     this.mode = mode
+
+    if (mode === 'export' && !this.scanning) {
+      void this.runInitialExportScan()
+    }
   }
 
   private async handleScan() {
+    await this.scanExportItems()
+  }
+
+  private async scanExportItems(options?: { suppressErrors?: boolean }) {
     if (!this.pageInfo) {
-      return
+      return false
     }
 
     this.scanning = true
@@ -159,13 +173,34 @@ export class PopupApp extends LitElement {
             ? `已扫描到 ${items.length} 个可导出项。`
             : '当前页面没有命中配置项。',
       }
+      return true
     } catch (error) {
-      this.result = {
-        ok: false,
-        message: error instanceof Error ? error.message : '扫描失败。',
+      if (!options?.suppressErrors) {
+        this.result = {
+          ok: false,
+          message: error instanceof Error ? error.message : '扫描失败。',
+        }
       }
+
+      return false
     } finally {
       this.scanning = false
+    }
+  }
+
+  private async runInitialExportScan() {
+    const maxAttempts = 5
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const scanned = await this.scanExportItems({
+        suppressErrors: attempt < maxAttempts - 1,
+      })
+
+      if (scanned) {
+        return
+      }
+
+      await sleep(300)
     }
   }
 
@@ -389,33 +424,6 @@ export class PopupApp extends LitElement {
         ${this.loading
           ? html`<section class="panel"><p>正在加载扩展状态...</p></section>`
           : html`
-              <section class="mode-panel">
-                <div class="mode-head">
-                  <div>
-                    <h2>工作模式</h2>
-                    <p class="mode-tip">
-                      ${localhostPage
-                        ? '检测到 localhost 页面，默认打开导入模式。'
-                        : '当前页面不是 localhost，默认打开导出模式。'}
-                    </p>
-                  </div>
-                  <div class="mode-switch" role="tablist" aria-label="切换导入导出模式">
-                    <button
-                      class=${this.mode === 'export' ? 'mode-button active' : 'mode-button'}
-                      @click=${() => this.handleModeChange('export')}
-                    >
-                      导出模式
-                    </button>
-                    <button
-                      class=${this.mode === 'import' ? 'mode-button active' : 'mode-button'}
-                      @click=${() => this.handleModeChange('import')}
-                    >
-                      导入模式
-                    </button>
-                  </div>
-                </div>
-              </section>
-
               ${this.mode === 'export'
                 ? html`
                     <popup-export-panel
@@ -465,6 +473,33 @@ export class PopupApp extends LitElement {
                     </section>
                   `
                 : nothing}
+
+              <section class="mode-panel">
+                <div class="mode-head">
+                  <div>
+                    <h2>工作模式</h2>
+                    <p class="mode-tip">
+                      ${localhostPage
+                        ? '检测到 localhost 页面，默认打开导入模式。'
+                        : '当前页面不是 localhost，默认打开导出模式。'}
+                    </p>
+                  </div>
+                  <div class="mode-switch" role="tablist" aria-label="切换导入导出模式">
+                    <button
+                      class=${this.mode === 'export' ? 'mode-button active' : 'mode-button'}
+                      @click=${() => this.handleModeChange('export')}
+                    >
+                      导出模式
+                    </button>
+                    <button
+                      class=${this.mode === 'import' ? 'mode-button active' : 'mode-button'}
+                      @click=${() => this.handleModeChange('import')}
+                    >
+                      导入模式
+                    </button>
+                  </div>
+                </div>
+              </section>
             `}
       </main>
     `
@@ -659,4 +694,10 @@ function isLocalhostPage(urlString: string) {
   } catch {
     return false
   }
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
 }

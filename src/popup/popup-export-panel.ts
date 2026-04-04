@@ -37,17 +37,6 @@ export class PopupExportPanel extends LitElement {
       <div class="workspace">
         <section class="panel">
           <div class="section-head">
-            <h2>当前页面</h2>
-            <button @click=${() => this.emit('scan-request')} ?disabled=${this.scanning}>
-              ${this.scanning ? '扫描中...' : '扫描可导出项'}
-            </button>
-          </div>
-          <p class="page-title">${this.pageInfo?.title ?? '未识别页面'}</p>
-          <p class="page-url">${this.pageInfo?.url ?? '无法读取当前标签页 URL'}</p>
-        </section>
-
-        <section class="panel">
-          <div class="section-head">
             <h2>可导出项</h2>
             <span>${this.exportItems.length} 项</span>
           </div>
@@ -94,6 +83,17 @@ export class PopupExportPanel extends LitElement {
                 : '请先配置 localhost 端口'}
             </button>
           </div>
+        </section>
+
+        <section class="panel">
+          <div class="section-head">
+            <h2>当前页面</h2>
+            <button @click=${() => this.emit('scan-request')} ?disabled=${this.scanning}>
+              ${this.scanning ? '扫描中...' : '重新扫描可导出项'}
+            </button>
+          </div>
+          <p class="page-title">${this.pageInfo?.title ?? '未识别页面'}</p>
+          <p class="page-url">${this.pageInfo?.url ?? '无法读取当前标签页 URL'}</p>
         </section>
       </div>
     `

@@ -148,13 +148,16 @@ async function openLocalhostAndApplyItems(port: string, items: DatasetItem[]) {
 
   try {
     const response = await tryApplyItemsToTab(tab.id, items)
+    const refreshed = response.imported > 0
+      ? await refreshInjectedTab(tab.id)
+      : false
 
     return {
       ok: response.failed.length === 0,
       message:
         response.failed.length === 0
-          ? `已打开 ${targetUrl}，并成功注入 ${response.imported} 项。`
-          : `已打开 ${targetUrl}，成功注入 ${response.imported} 项，另有 ${response.failed.length} 项失败。`,
+          ? `已打开 ${targetUrl}，并成功注入 ${response.imported} 项。${refreshed ? '页面已刷新以重新触发生命周期。' : ''}`
+          : `已打开 ${targetUrl}，成功注入 ${response.imported} 项，另有 ${response.failed.length} 项失败。${refreshed ? '页面已刷新以重新触发生命周期。' : ''}`,
     }
   } catch {
     const cookieItems = items.filter((item) => item.storageType === 'cookie')
@@ -167,14 +170,17 @@ async function openLocalhostAndApplyItems(port: string, items: DatasetItem[]) {
     }
 
     const cookieResult = await applyCookiesToUrl(targetUrl, cookieItems)
+    const refreshed = cookieResult.imported > 0
+      ? await refreshInjectedTab(tab.id)
+      : false
 
     return {
       ok: cookieResult.imported > 0 && cookieResult.failed.length === 0,
       message:
         cookieResult.imported > 0
           ? cookieResult.failed.length === 0
-            ? `已打开 ${targetUrl}。页面侧存储注入不可用，已回退注入 ${cookieResult.imported} 个 cookie。`
-            : `已打开 ${targetUrl}。页面侧存储注入不可用，已回退注入 ${cookieResult.imported} 个 cookie，另有 ${cookieResult.failed.length} 个失败。`
+            ? `已打开 ${targetUrl}。页面侧存储注入不可用，已回退注入 ${cookieResult.imported} 个 cookie。${refreshed ? '页面已刷新以重新触发生命周期。' : ''}`
+            : `已打开 ${targetUrl}。页面侧存储注入不可用，已回退注入 ${cookieResult.imported} 个 cookie，另有 ${cookieResult.failed.length} 个失败。${refreshed ? '页面已刷新以重新触发生命周期。' : ''}`
           : `已打开 ${targetUrl}，但页面侧存储注入不可用，cookie 回退注入也未成功。`,
       details: cookieResult.failed,
     }
@@ -238,6 +244,15 @@ async function applyCookiesToUrl(url: string, items: DatasetItem[]) {
   }
 
   return { imported, failed }
+}
+
+async function refreshInjectedTab(tabId: number) {
+  try {
+    await chrome.tabs.reload(tabId)
+    return true
+  } catch {
+    return false
+  }
 }
 
 function sleep(ms: number) {
