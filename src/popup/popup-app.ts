@@ -16,6 +16,7 @@ import type {
   PageInfo,
 } from '../shared/types'
 import { formatDisplayHost, toRecordKey } from '../shared/utils'
+import { getScanErrorMessage, shouldSilenceAutoScanError } from './scan-errors'
 import './popup-export-panel'
 import './popup-import-panel'
 
@@ -132,7 +133,7 @@ export class PopupApp extends LitElement {
   private handleModeChange(mode: PopupMode) {
     this.mode = mode
 
-    if (mode === 'export' && !this.scanning) {
+    if (mode === 'export' && !this.scanning && this.exportItems.length === 0) {
       void this.runInitialExportScan()
     }
   }
@@ -175,10 +176,16 @@ export class PopupApp extends LitElement {
       }
       return true
     } catch (error) {
+      const normalizedMessage = getScanErrorMessage(error)
+
+      if (options?.suppressErrors && shouldSilenceAutoScanError(error)) {
+        return false
+      }
+
       if (!options?.suppressErrors) {
         this.result = {
           ok: false,
-          message: error instanceof Error ? error.message : '扫描失败。',
+          message: normalizedMessage ?? '扫描失败。',
         }
       }
 
@@ -192,9 +199,7 @@ export class PopupApp extends LitElement {
     const maxAttempts = 5
 
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-      const scanned = await this.scanExportItems({
-        suppressErrors: attempt < maxAttempts - 1,
-      })
+      const scanned = await this.scanExportItems({ suppressErrors: true })
 
       if (scanned) {
         return
@@ -595,6 +600,12 @@ export class PopupApp extends LitElement {
       border: 1px solid var(--color-border);
       border-radius: 16px;
       padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    popup-export-panel,
+    popup-import-panel {
+      display: block;
       margin-bottom: 14px;
     }
 
