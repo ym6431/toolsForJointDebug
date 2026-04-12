@@ -1,4 +1,10 @@
-import type { ConfigItem, DatasetItem, StorageType } from './types'
+import type {
+  ConfigItem,
+  DatasetItem,
+  LocalhostProtocol,
+  LocalhostTarget,
+  StorageType,
+} from './types'
 
 export function toRecordKey(storageType: StorageType, key: string) {
   return `${storageType}:${key}`
@@ -110,6 +116,84 @@ export function normalizePortList(values: string[]) {
   })
 }
 
+export function normalizeLocalhostProtocol(value: string): LocalhostProtocol | '' {
+  const normalizedValue = value.trim().toLowerCase()
+
+  return normalizedValue === 'http' || normalizedValue === 'https'
+    ? normalizedValue
+    : ''
+}
+
+export function normalizeLocalhostTarget(value: unknown): LocalhostTarget | null {
+  if (typeof value === 'string') {
+    return parseLocalhostTargetString(value)
+  }
+
+  if (!value || typeof value !== 'object') {
+    return null
+  }
+
+  const protocol = 'protocol' in value ? normalizeLocalhostProtocol(String(value.protocol ?? '')) : ''
+  const port = 'port' in value ? normalizePort(String(value.port ?? '')) : ''
+
+  if (!protocol || !port) {
+    return null
+  }
+
+  return { protocol, port }
+}
+
+export function normalizeLocalhostTargetKey(value: unknown) {
+  const target = normalizeLocalhostTarget(value)
+
+  return target ? serializeLocalhostTarget(target) : ''
+}
+
+export function normalizeLocalhostTargetList(values: unknown[]) {
+  const seen = new Set<string>()
+
+  return values.flatMap((value) => {
+    const target = normalizeLocalhostTarget(value)
+
+    if (!target) {
+      return []
+    }
+
+    const targetKey = serializeLocalhostTarget(target)
+
+    if (seen.has(targetKey)) {
+      return []
+    }
+
+    seen.add(targetKey)
+
+    return [target]
+  })
+}
+
+export function resolveDefaultLocalhostTargetKey(
+  targets: LocalhostTarget[],
+  defaultTargetKey: string,
+) {
+  if (targets.some((target) => serializeLocalhostTarget(target) === defaultTargetKey)) {
+    return defaultTargetKey
+  }
+
+  return targets[0] ? serializeLocalhostTarget(targets[0]) : ''
+}
+
+export function serializeLocalhostTarget(target: LocalhostTarget) {
+  return `${target.protocol}:${target.port}`
+}
+
+export function formatLocalhostTarget(target: LocalhostTarget) {
+  return `${target.protocol}://localhost:${target.port}`
+}
+
+export function buildLocalhostUrl(target: LocalhostTarget) {
+  return `${formatLocalhostTarget(target)}/`
+}
+
 function getTrimmedHost(host: string, hostname: string, port: string) {
   const normalizedHostname = hostname.trim().toLowerCase()
 
@@ -143,4 +227,34 @@ function isIpAddress(hostname: string) {
 
 function normalizeIpDisplay(hostname: string) {
   return hostname.replace(/^\[(.*)\]$/, '$1')
+}
+
+function parseLocalhostTargetString(value: string): LocalhostTarget | null {
+  const trimmedValue = value.trim()
+
+  if (!trimmedValue) {
+    return null
+  }
+
+  const urlMatch = trimmedValue.match(/^(https?):\/\/localhost:(\d+)\/?$/i)
+
+  if (urlMatch) {
+    const protocol = normalizeLocalhostProtocol(urlMatch[1])
+    const port = normalizePort(urlMatch[2])
+
+    return protocol && port ? { protocol, port } : null
+  }
+
+  const keyMatch = trimmedValue.match(/^(https?):(\d+)$/i)
+
+  if (keyMatch) {
+    const protocol = normalizeLocalhostProtocol(keyMatch[1])
+    const port = normalizePort(keyMatch[2])
+
+    return protocol && port ? { protocol, port } : null
+  }
+
+  const port = normalizePort(trimmedValue)
+
+  return port ? { protocol: 'http', port } : null
 }

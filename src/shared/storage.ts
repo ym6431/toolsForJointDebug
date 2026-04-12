@@ -1,11 +1,13 @@
 import { DEFAULT_STORAGE_STATE, STORAGE_KEYS } from './constants'
-import type { ConfigItem, Dataset, SaveDatasetInput } from './types'
+import type { ConfigItem, Dataset, LocalhostTarget, SaveDatasetInput } from './types'
 import {
   createId,
   dedupeConfig,
   dedupeDatasetItems,
-  normalizePort,
-  normalizePortList,
+  normalizeLocalhostTarget,
+  normalizeLocalhostTargetKey,
+  normalizeLocalhostTargetList,
+  resolveDefaultLocalhostTargetKey,
 } from './utils'
 
 async function readStorageState() {
@@ -16,31 +18,32 @@ async function readStorageState() {
     [STORAGE_KEYS.defaultLocalhostPort]: DEFAULT_STORAGE_STATE.defaultLocalhostPort,
     [STORAGE_KEYS.legacyLocalhostPort]: '',
   })
-  const localhostPorts = normalizePortList(
+  const localhostTargets = normalizeLocalhostTargetList(
     Array.isArray(result[STORAGE_KEYS.localhostPorts])
-      ? (result[STORAGE_KEYS.localhostPorts] as string[])
+      ? (result[STORAGE_KEYS.localhostPorts] as unknown[])
       : [],
   )
   const legacyLocalhostPort =
     typeof result[STORAGE_KEYS.legacyLocalhostPort] === 'string'
-      ? normalizePort(result[STORAGE_KEYS.legacyLocalhostPort] as string)
-      : ''
-  const normalizedPorts =
-    localhostPorts.length > 0
-      ? localhostPorts
+      ? normalizeLocalhostTarget(result[STORAGE_KEYS.legacyLocalhostPort] as string)
+      : null
+  const normalizedTargets =
+    localhostTargets.length > 0
+      ? localhostTargets
       : legacyLocalhostPort
         ? [legacyLocalhostPort]
         : []
   const requestedDefaultPort =
     typeof result[STORAGE_KEYS.defaultLocalhostPort] === 'string'
-      ? normalizePort(result[STORAGE_KEYS.defaultLocalhostPort] as string)
+      || typeof result[STORAGE_KEYS.defaultLocalhostPort] === 'object'
+      ? normalizeLocalhostTargetKey(result[STORAGE_KEYS.defaultLocalhostPort])
       : ''
-  const defaultLocalhostPort = resolveDefaultPort(normalizedPorts, requestedDefaultPort)
+  const defaultLocalhostPort = resolveDefaultLocalhostTargetKey(normalizedTargets, requestedDefaultPort)
 
   return {
     datasets: (result[STORAGE_KEYS.datasets] as Dataset[]) ?? [],
     customConfig: (result[STORAGE_KEYS.customConfig] as ConfigItem[]) ?? [],
-    localhostPorts: normalizedPorts,
+    localhostPorts: normalizedTargets,
     defaultLocalhostPort,
   }
 }
@@ -118,50 +121,51 @@ export async function resetCustomConfig() {
   await chrome.storage.local.remove(STORAGE_KEYS.customConfig)
 }
 
-export async function getLocalhostPorts() {
+export async function getLocalhostTargets() {
   const state = await readStorageState()
 
   return state.localhostPorts
 }
 
-export async function getDefaultLocalhostPort() {
+export async function getDefaultLocalhostTargetKey() {
   const state = await readStorageState()
 
   return state.defaultLocalhostPort
 }
 
-export async function saveLocalhostTargetConfig(ports: string[], defaultPort: string) {
-  const normalizedPorts = normalizePortList(ports)
-  const normalizedDefaultPort = resolveDefaultPort(normalizedPorts, defaultPort)
+export async function saveLocalhostTargetConfig(
+  targets: LocalhostTarget[],
+  defaultTargetKey: string,
+) {
+  const normalizedTargets = normalizeLocalhostTargetList(targets)
+  const normalizedDefaultTargetKey = resolveDefaultLocalhostTargetKey(
+    normalizedTargets,
+    defaultTargetKey,
+  )
 
   await chrome.storage.local.set({
-    [STORAGE_KEYS.localhostPorts]: normalizedPorts,
-    [STORAGE_KEYS.defaultLocalhostPort]: normalizedDefaultPort,
+    [STORAGE_KEYS.localhostPorts]: normalizedTargets,
+    [STORAGE_KEYS.defaultLocalhostPort]: normalizedDefaultTargetKey,
   })
 
   return {
-    localhostPorts: normalizedPorts,
-    defaultLocalhostPort: normalizedDefaultPort,
+    localhostTargets: normalizedTargets,
+    defaultLocalhostTargetKey: normalizedDefaultTargetKey,
   }
 }
 
-export async function saveDefaultLocalhostPort(port: string) {
+export async function saveDefaultLocalhostTargetKey(targetKey: string) {
   const state = await readStorageState()
-  const normalizedDefaultPort = resolveDefaultPort(state.localhostPorts, port)
+  const normalizedDefaultTargetKey = state.localhostPorts.some(
+    (target) => normalizeLocalhostTargetKey(target) === targetKey,
+  )
+    ? targetKey
+    : state.defaultLocalhostPort
+      || resolveDefaultLocalhostTargetKey(state.localhostPorts, '')
 
   await chrome.storage.local.set({
-    [STORAGE_KEYS.defaultLocalhostPort]: normalizedDefaultPort,
+    [STORAGE_KEYS.defaultLocalhostPort]: normalizedDefaultTargetKey,
   })
 
-  return normalizedDefaultPort
-}
-
-function resolveDefaultPort(ports: string[], defaultPort: string) {
-  const normalizedDefaultPort = normalizePort(defaultPort)
-
-  if (normalizedDefaultPort && ports.includes(normalizedDefaultPort)) {
-    return normalizedDefaultPort
-  }
-
-  return ports[0] ?? ''
+  return normalizedDefaultTargetKey
 }

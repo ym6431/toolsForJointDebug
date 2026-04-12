@@ -1,6 +1,12 @@
 export type StorageType = 'localStorage' | 'sessionStorage' | 'cookie'
 
 export type CookieSameSite = 'no_restriction' | 'lax' | 'strict' | 'unspecified'
+export type LocalhostProtocol = 'http' | 'https'
+
+export interface LocalhostTarget {
+  protocol: LocalhostProtocol
+  port: string
+}
 
 export interface CookiePartitionKey {
   topLevelSite?: string
@@ -62,7 +68,7 @@ export interface SaveDatasetInput {
 export interface AppStorageState {
   datasets: Dataset[]
   customConfig: ConfigItem[]
-  localhostPorts: string[]
+  localhostPorts: LocalhostTarget[]
   defaultLocalhostPort: string
 }
 
@@ -81,7 +87,7 @@ export type BackgroundMessage =
   | { type: 'RELOAD_TAB'; tabId: number }
   | { type: 'READ_COOKIES'; url: string; keys: string[] }
   | { type: 'APPLY_COOKIES_TO_URL'; url: string; items: DatasetItem[] }
-  | { type: 'OPEN_LOCALHOST_AND_APPLY_ITEMS'; port: string; items: DatasetItem[] }
+  | { type: 'OPEN_LOCALHOST_AND_APPLY_ITEMS'; target: LocalhostTarget; items: DatasetItem[] }
 
 export type ContentMessage =
   | { type: 'COLLECT_EXPORTABLE_ITEMS'; config: ConfigItem[] }

@@ -1,11 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildLocalhostUrl,
   dedupeConfig,
   dedupeDatasetItems,
   formatDisplayHost,
+  formatLocalhostTarget,
+  normalizeLocalhostTarget,
+  normalizeLocalhostTargetKey,
+  normalizeLocalhostTargetList,
   normalizePort,
   normalizePortList,
   previewValue,
+  resolveDefaultLocalhostTargetKey,
+  serializeLocalhostTarget,
   toRecordKey,
 } from './utils'
 
@@ -59,6 +66,41 @@ describe('shared utils', () => {
       '5173',
       '3000',
     ])
+  })
+
+  it('normalizes localhost targets from legacy and new formats', () => {
+    expect(normalizeLocalhostTarget(' 05173 ')).toEqual({
+      protocol: 'http',
+      port: '5173',
+    })
+    expect(normalizeLocalhostTarget('https://localhost:8443/')).toEqual({
+      protocol: 'https',
+      port: '8443',
+    })
+    expect(normalizeLocalhostTarget({ protocol: 'https', port: ' 0443 ' })).toEqual({
+      protocol: 'https',
+      port: '443',
+    })
+    expect(normalizeLocalhostTarget('ftp://localhost:21')).toBeNull()
+  })
+
+  it('serializes, formats, and resolves localhost targets', () => {
+    const targets = normalizeLocalhostTargetList([
+      '5173',
+      { protocol: 'https', port: '8443' },
+      'http:5173',
+    ])
+
+    expect(targets).toEqual([
+      { protocol: 'http', port: '5173' },
+      { protocol: 'https', port: '8443' },
+    ])
+    expect(serializeLocalhostTarget(targets[0]!)).toBe('http:5173')
+    expect(normalizeLocalhostTargetKey('https://localhost:8443')).toBe('https:8443')
+    expect(formatLocalhostTarget(targets[1]!)).toBe('https://localhost:8443')
+    expect(buildLocalhostUrl(targets[1]!)).toBe('https://localhost:8443/')
+    expect(resolveDefaultLocalhostTargetKey(targets, 'https:8443')).toBe('https:8443')
+    expect(resolveDefaultLocalhostTargetKey(targets, 'https:3000')).toBe('http:5173')
   })
 
   it('formats source urls into trimmed hosts', () => {

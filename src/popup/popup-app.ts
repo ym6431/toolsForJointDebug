@@ -2,20 +2,26 @@ import { LitElement, css, html, nothing } from 'lit'
 import { customElement, state } from 'lit/decorators.js'
 import {
   deleteDataset,
-  getDefaultLocalhostPort,
+  getDefaultLocalhostTargetKey,
   getDatasets,
   getCustomConfig,
-  getLocalhostPorts,
-  saveDefaultLocalhostPort,
+  getLocalhostTargets,
+  saveDefaultLocalhostTargetKey,
   saveDataset,
 } from '../shared/storage'
 import type {
   Dataset,
   DatasetItem,
+  LocalhostTarget,
   OperationResult,
   PageInfo,
 } from '../shared/types'
-import { formatDisplayHost, toRecordKey } from '../shared/utils'
+import {
+  formatDisplayHost,
+  formatLocalhostTarget,
+  serializeLocalhostTarget,
+  toRecordKey,
+} from '../shared/utils'
 import { getScanErrorMessage, shouldSilenceAutoScanError } from './scan-errors'
 import './popup-export-panel'
 import './popup-import-panel'
@@ -53,10 +59,10 @@ export class PopupApp extends LitElement {
   private datasetName = ''
 
   @state()
-  private localhostPorts: string[] = []
+  private localhostTargets: LocalhostTarget[] = []
 
   @state()
-  private selectedLocalhostPort = ''
+  private selectedLocalhostTargetKey = ''
 
   @state()
   private result: OperationResult | null = null
@@ -80,19 +86,19 @@ export class PopupApp extends LitElement {
     let initialMode: PopupMode = 'export'
 
     try {
-      const [pageInfo, datasets, localhostPorts, defaultLocalhostPort] = await Promise.all([
+      const [pageInfo, datasets, localhostTargets, defaultLocalhostTargetKey] = await Promise.all([
         this.getActiveTab(),
         getDatasets(),
-        getLocalhostPorts(),
-        getDefaultLocalhostPort(),
+        getLocalhostTargets(),
+        getDefaultLocalhostTargetKey(),
       ])
 
       this.pageInfo = pageInfo
       initialMode = getDefaultMode(pageInfo.url)
       this.mode = initialMode
       this.datasets = datasets
-      this.localhostPorts = localhostPorts
-      this.selectedLocalhostPort = defaultLocalhostPort
+      this.localhostTargets = localhostTargets
+      this.selectedLocalhostTargetKey = defaultLocalhostTargetKey
 
       if (datasets[0]) {
         this.selectedDatasetId = datasets[0].id
@@ -213,11 +219,11 @@ export class PopupApp extends LitElement {
     this.datasetName = (event as CustomEvent<string>).detail
   }
 
-  private async handleLocalhostPortChange(event: Event) {
-    const port = (event as CustomEvent<string>).detail
+  private async handleLocalhostTargetChange(event: Event) {
+    const targetKey = (event as CustomEvent<string>).detail
 
-    this.selectedLocalhostPort = port
-    this.selectedLocalhostPort = await saveDefaultLocalhostPort(port)
+    this.selectedLocalhostTargetKey = targetKey
+    this.selectedLocalhostTargetKey = await saveDefaultLocalhostTargetKey(targetKey)
   }
 
   private handleExportToggle(event: Event) {
@@ -262,10 +268,14 @@ export class PopupApp extends LitElement {
   }
 
   private async handleSaveAndInject() {
-    if (!this.selectedLocalhostPort) {
+    const selectedLocalhostTarget = this.localhostTargets.find(
+      (target) => serializeLocalhostTarget(target) === this.selectedLocalhostTargetKey,
+    )
+
+    if (!selectedLocalhostTarget) {
       this.result = {
         ok: false,
-        message: '请先在 options 中配置可用的 localhost 端口。',
+        message: '请先在 options 中配置可用的 localhost 注入目标。',
       }
       return
     }
@@ -279,7 +289,7 @@ export class PopupApp extends LitElement {
     try {
       const response = (await chrome.runtime.sendMessage({
         type: 'OPEN_LOCALHOST_AND_APPLY_ITEMS',
-        port: this.selectedLocalhostPort,
+        target: selectedLocalhostTarget,
         items: dataset.items,
       })) as {
         ok?: boolean
@@ -296,7 +306,7 @@ export class PopupApp extends LitElement {
         ok: response.ok ?? true,
         message:
           response.message
-          ?? `已保存数据集“${dataset.datasetName}”，并开始注入 localhost:${this.selectedLocalhostPort}。`,
+          ?? `已保存数据集“${dataset.datasetName}”，并开始注入 ${formatLocalhostTarget(selectedLocalhostTarget)}。`,
         details: response.details,
       }
     } catch (error) {
@@ -437,11 +447,11 @@ export class PopupApp extends LitElement {
                       .exportItems=${this.exportItems}
                       .selectedKeys=${this.selectedExportKeys}
                       .datasetName=${this.datasetName}
-                      .localhostPorts=${this.localhostPorts}
-                      .selectedLocalhostPort=${this.selectedLocalhostPort}
+                      .localhostTargets=${this.localhostTargets}
+                      .selectedLocalhostTargetKey=${this.selectedLocalhostTargetKey}
                       @scan-request=${this.handleScan}
                       @dataset-name-change=${this.handleDatasetNameChange}
-                      @localhost-port-change=${this.handleLocalhostPortChange}
+                      @localhost-target-change=${this.handleLocalhostTargetChange}
                       @export-item-toggle=${this.handleExportToggle}
                       @export-request=${this.handleExport}
                       @save-and-inject-request=${this.handleSaveAndInject}

@@ -4,21 +4,21 @@ import {
   deleteDataset,
   ensureStorageInitialized,
   getCustomConfig,
+  getDefaultLocalhostTargetKey,
   getDatasets,
-  getDefaultLocalhostPort,
-  getLocalhostPorts,
+  getLocalhostTargets,
   resetCustomConfig,
   saveCustomConfig,
   saveDataset,
-  saveDefaultLocalhostPort,
+  saveDefaultLocalhostTargetKey,
   saveLocalhostTargetConfig,
 } from './storage'
-import type { ConfigItem, Dataset } from './types'
+import type { ConfigItem, Dataset, LocalhostTarget } from './types'
 
 type StorageSnapshot = {
   datasets: Dataset[]
   customConfig: ConfigItem[]
-  localhostPorts: string[]
+  localhostPorts: Array<LocalhostTarget | string>
   defaultLocalhostPort: string
   localhostPort?: string
 }
@@ -165,31 +165,46 @@ describe('shared storage', () => {
 
   it('saves localhost ports and default port with normalization', async () => {
     const saved = await saveLocalhostTargetConfig(
-      [' 05173 ', '3000', '5173', 'abc'],
-      '3000',
+      [
+        { protocol: 'http', port: ' 05173 ' },
+        { protocol: 'https', port: '3000' },
+        { protocol: 'http', port: '5173' },
+      ],
+      'https:3000',
     )
 
     expect(saved).toEqual({
-      localhostPorts: ['5173', '3000'],
-      defaultLocalhostPort: '3000',
+      localhostTargets: [
+        { protocol: 'http', port: '5173' },
+        { protocol: 'https', port: '3000' },
+      ],
+      defaultLocalhostTargetKey: 'https:3000',
     })
-    expect(await getLocalhostPorts()).toEqual(['5173', '3000'])
-    expect(await getDefaultLocalhostPort()).toBe('3000')
+    expect(await getLocalhostTargets()).toEqual([
+      { protocol: 'http', port: '5173' },
+      { protocol: 'https', port: '3000' },
+    ])
+    expect(await getDefaultLocalhostTargetKey()).toBe('https:3000')
   })
 
   it('keeps default port inside configured list when saving from popup', async () => {
-    snapshot.localhostPorts = ['5173', '3000']
-    snapshot.defaultLocalhostPort = '5173'
+    snapshot.localhostPorts = [
+      { protocol: 'http', port: '5173' },
+      { protocol: 'https', port: '3000' },
+    ]
+    snapshot.defaultLocalhostPort = 'http:5173'
 
-    expect(await saveDefaultLocalhostPort('3000')).toBe('3000')
-    expect(await saveDefaultLocalhostPort('9999')).toBe('5173')
+    expect(await saveDefaultLocalhostTargetKey('https:3000')).toBe('https:3000')
+    expect(await saveDefaultLocalhostTargetKey('http:9999')).toBe('https:3000')
   })
 
   it('migrates legacy single localhost port into array config', async () => {
     snapshot.localhostPort = '05173'
 
-    expect(await getLocalhostPorts()).toEqual(['5173'])
-    expect(await getDefaultLocalhostPort()).toBe('5173')
+    expect(await getLocalhostTargets()).toEqual([
+      { protocol: 'http', port: '5173' },
+    ])
+    expect(await getDefaultLocalhostTargetKey()).toBe('http:5173')
   })
 
   it('returns datasets sorted by createdAt descending', async () => {

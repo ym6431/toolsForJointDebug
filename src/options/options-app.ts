@@ -5,14 +5,27 @@ import '../components/app-input'
 import '../components/app-select'
 import {
   getCustomConfig,
-  getDefaultLocalhostPort,
-  getLocalhostPorts,
+  getDefaultLocalhostTargetKey,
+  getLocalhostTargets,
   resetCustomConfig,
   saveCustomConfig,
   saveLocalhostTargetConfig,
 } from '../shared/storage'
-import type { ConfigItem, StorageType } from '../shared/types'
-import { dedupeConfig, normalizePort, normalizePortList } from '../shared/utils'
+import type {
+  ConfigItem,
+  LocalhostProtocol,
+  LocalhostTarget,
+  StorageType,
+} from '../shared/types'
+import {
+  dedupeConfig,
+  formatLocalhostTarget,
+  normalizeLocalhostTarget,
+  normalizeLocalhostTargetKey,
+  normalizeLocalhostTargetList,
+  resolveDefaultLocalhostTargetKey,
+  serializeLocalhostTarget,
+} from '../shared/utils'
 
 @customElement('options-app')
 export class OptionsApp extends LitElement {
@@ -33,10 +46,13 @@ export class OptionsApp extends LitElement {
   private message = ''
 
   @state()
-  private localhostPorts: string[] = []
+  private localhostTargets: LocalhostTarget[] = []
 
   @state()
-  private defaultLocalhostPort = ''
+  private defaultLocalhostTargetKey = ''
+
+  @state()
+  private localhostProtocolDraft: LocalhostProtocol = 'http'
 
   @state()
   private localhostPortDraft = ''
@@ -47,15 +63,15 @@ export class OptionsApp extends LitElement {
   }
 
   private async loadConfig() {
-    const [customItems, localhostPorts, defaultLocalhostPort] = await Promise.all([
+    const [customItems, localhostTargets, defaultLocalhostTargetKey] = await Promise.all([
       getCustomConfig(),
-      getLocalhostPorts(),
-      getDefaultLocalhostPort(),
+      getLocalhostTargets(),
+      getDefaultLocalhostTargetKey(),
     ])
 
     this.customItems = customItems
-    this.localhostPorts = localhostPorts
-    this.defaultLocalhostPort = defaultLocalhostPort
+    this.localhostTargets = localhostTargets
+    this.defaultLocalhostTargetKey = defaultLocalhostTargetKey
   }
 
   private updateDraft<K extends keyof ConfigItem>(key: K, value: ConfigItem[K]) {
@@ -104,57 +120,66 @@ export class OptionsApp extends LitElement {
     this.customItems = this.customItems.filter((_, itemIndex) => itemIndex !== index)
   }
 
-  private addLocalhostPort() {
-    const normalizedPort = normalizePort(this.localhostPortDraft)
+  private addLocalhostTarget() {
+    const target = normalizeLocalhostTarget({
+      protocol: this.localhostProtocolDraft,
+      port: this.localhostPortDraft,
+    })
 
-    if (!normalizedPort) {
+    if (!target) {
       this.message = '端口必须是 1 到 65535 之间的数字。'
       return
     }
 
-    if (this.localhostPorts.includes(normalizedPort)) {
-      this.message = `localhost:${normalizedPort} 已存在。`
+    const targetKey = serializeLocalhostTarget(target)
+
+    if (this.localhostTargets.some((item) => serializeLocalhostTarget(item) === targetKey)) {
+      this.message = `${formatLocalhostTarget(target)} 已存在。`
       this.localhostPortDraft = ''
       return
     }
 
-    this.localhostPorts = [...this.localhostPorts, normalizedPort]
-    this.defaultLocalhostPort = this.defaultLocalhostPort || normalizedPort
+    this.localhostTargets = [...this.localhostTargets, target]
+    this.defaultLocalhostTargetKey = this.defaultLocalhostTargetKey || targetKey
     this.localhostPortDraft = ''
     this.message = ''
   }
 
-  private removeLocalhostPort(port: string) {
-    this.localhostPorts = this.localhostPorts.filter((item) => item !== port)
+  private removeLocalhostTarget(targetKey: string) {
+    const nextTargets = this.localhostTargets.filter(
+      (item) => serializeLocalhostTarget(item) !== targetKey,
+    )
 
-    if (this.defaultLocalhostPort === port) {
-      this.defaultLocalhostPort = this.localhostPorts[0] ?? ''
-    }
+    this.localhostTargets = nextTargets
+    this.defaultLocalhostTargetKey = resolveDefaultLocalhostTargetKey(
+      nextTargets,
+      this.defaultLocalhostTargetKey === targetKey ? '' : this.defaultLocalhostTargetKey,
+    )
   }
 
-  private setDefaultLocalhostPort(port: string) {
-    this.defaultLocalhostPort = port
+  private setDefaultLocalhostTarget(targetKey: string) {
+    this.defaultLocalhostTargetKey = targetKey
   }
 
   private async saveAll() {
     this.customItems = await saveCustomConfig(this.customItems)
 
     const localhostTargetConfig = await saveLocalhostTargetConfig(
-      this.localhostPorts,
-      this.defaultLocalhostPort,
+      this.localhostTargets,
+      this.defaultLocalhostTargetKey,
     )
 
-    this.localhostPorts = localhostTargetConfig.localhostPorts
-    this.defaultLocalhostPort = localhostTargetConfig.defaultLocalhostPort
+    this.localhostTargets = localhostTargetConfig.localhostTargets
+    this.defaultLocalhostTargetKey = localhostTargetConfig.defaultLocalhostTargetKey
     this.message = '配置已保存。'
   }
 
   private handleExportConfig() {
     const payload = {
-      version: 2,
+      version: 3,
       exportedAt: new Date().toISOString(),
-      localhostPorts: this.localhostPorts,
-      defaultLocalhostPort: this.defaultLocalhostPort,
+      localhostTargets: this.localhostTargets,
+      defaultLocalhostTarget: this.defaultLocalhostTargetKey,
       items: this.customItems,
     }
     const blob = new Blob([JSON.stringify(payload, null, 2)], {
@@ -194,13 +219,17 @@ export class OptionsApp extends LitElement {
         : data && typeof data === 'object' && 'items' in data
           ? (data as { items?: unknown }).items
           : null
-    const localhostPorts =
-      data && typeof data === 'object' && 'localhostPorts' in data
-        ? (data as { localhostPorts?: unknown }).localhostPorts
+    const localhostTargetValues =
+      data && typeof data === 'object' && 'localhostTargets' in data
+        ? (data as { localhostTargets?: unknown }).localhostTargets
+        : data && typeof data === 'object' && 'localhostPorts' in data
+          ? (data as { localhostPorts?: unknown }).localhostPorts
         : []
-    const defaultLocalhostPort =
-      data && typeof data === 'object' && 'defaultLocalhostPort' in data
-        ? (data as { defaultLocalhostPort?: unknown }).defaultLocalhostPort
+    const defaultLocalhostTarget =
+      data && typeof data === 'object' && 'defaultLocalhostTarget' in data
+        ? (data as { defaultLocalhostTarget?: unknown }).defaultLocalhostTarget
+        : data && typeof data === 'object' && 'defaultLocalhostPort' in data
+          ? (data as { defaultLocalhostPort?: unknown }).defaultLocalhostPort
         : data && typeof data === 'object' && 'localhostPort' in data
           ? (data as { localhostPort?: unknown }).localhostPort
           : ''
@@ -209,16 +238,15 @@ export class OptionsApp extends LitElement {
       throw new Error('导入文件格式不正确，缺少 items 数组。')
     }
 
-    const normalizedPorts = Array.isArray(localhostPorts)
-      ? localhostPorts.flatMap((value) => (typeof value === 'string' ? [value] : []))
-      : typeof defaultLocalhostPort === 'string' && defaultLocalhostPort
-        ? [defaultLocalhostPort]
+    const normalizedTargets = Array.isArray(localhostTargetValues)
+      ? normalizeLocalhostTargetList(localhostTargetValues)
+      : normalizeLocalhostTarget(defaultLocalhostTarget)
+        ? [normalizeLocalhostTarget(defaultLocalhostTarget)!]
         : []
 
     return {
-      localhostPorts: normalizedPorts,
-      defaultLocalhostPort:
-        typeof defaultLocalhostPort === 'string' ? defaultLocalhostPort : '',
+      localhostTargets: normalizedTargets,
+      defaultLocalhostTargetKey: normalizeLocalhostTargetKey(defaultLocalhostTarget),
       items: items.map((item, index) => {
         if (!item || typeof item !== 'object') {
           throw new Error(`第 ${index + 1} 项不是合法对象。`)
@@ -261,20 +289,25 @@ export class OptionsApp extends LitElement {
 
       if (this.importMode === 'merge') {
         const mergedItems = dedupeConfig([...this.customItems, ...importedItems])
-        const mergedPorts = normalizePortList([
-          ...this.localhostPorts,
-          ...importedConfig.localhostPorts,
+        const mergedTargets = normalizeLocalhostTargetList([
+          ...this.localhostTargets,
+          ...importedConfig.localhostTargets,
         ])
 
         this.customItems = mergedItems
-        this.localhostPorts = mergedPorts
-        this.defaultLocalhostPort =
-          normalizePort(importedConfig.defaultLocalhostPort) || this.defaultLocalhostPort
+        this.localhostTargets = mergedTargets
+        this.defaultLocalhostTargetKey = resolveDefaultLocalhostTargetKey(
+          mergedTargets,
+          importedConfig.defaultLocalhostTargetKey || this.defaultLocalhostTargetKey,
+        )
         this.message = `已追加合并 ${importedItems.length} 项配置，请确认后保存。`
       } else {
         this.customItems = dedupeConfig(importedItems)
-        this.localhostPorts = normalizePortList(importedConfig.localhostPorts)
-        this.defaultLocalhostPort = normalizePort(importedConfig.defaultLocalhostPort)
+        this.localhostTargets = normalizeLocalhostTargetList(importedConfig.localhostTargets)
+        this.defaultLocalhostTargetKey = resolveDefaultLocalhostTargetKey(
+          this.localhostTargets,
+          importedConfig.defaultLocalhostTargetKey,
+        )
         this.message = `已覆盖导入 ${this.customItems.length} 项配置，请确认后保存。`
       }
     } catch (error) {
@@ -290,8 +323,9 @@ export class OptionsApp extends LitElement {
       saveLocalhostTargetConfig([], ''),
     ])
     this.customItems = []
-    this.localhostPorts = []
-    this.defaultLocalhostPort = ''
+    this.localhostTargets = []
+    this.defaultLocalhostTargetKey = ''
+    this.localhostProtocolDraft = 'http'
     this.localhostPortDraft = ''
     this.message = '已清空全部配置项。'
   }
@@ -355,7 +389,17 @@ export class OptionsApp extends LitElement {
           </div>
           <div class="port-editor">
             <label class="field">
-              <span>新增端口</span>
+              <span>协议</span>
+              <app-select
+                .options=${this.localhostProtocolOptions}
+                .value=${this.localhostProtocolDraft}
+                @value-change=${(event: Event) => {
+                  this.localhostProtocolDraft = (event as CustomEvent<string>).detail as LocalhostProtocol
+                }}
+              ></app-select>
+            </label>
+            <label class="field">
+              <span>端口</span>
               <app-input
                 .value=${this.localhostPortDraft}
                 inputmode="numeric"
@@ -365,23 +409,25 @@ export class OptionsApp extends LitElement {
                 placeholder="例如：5173"
               ></app-input>
             </label>
-            <button class="secondary" @click=${this.addLocalhostPort}>加入端口列表</button>
+            <button class="secondary" @click=${this.addLocalhostTarget}>加入端口列表</button>
           </div>
-          ${this.localhostPorts.length === 0
-            ? html`<p class="empty">还没有可用的 localhost 端口。</p>`
+          ${this.localhostTargets.length === 0
+            ? html`<p class="empty">还没有可用的 localhost 注入目标。</p>`
             : html`
                 <div class="port-list">
-                  ${this.localhostPorts.map(
-                    (port) => html`
+                  ${this.localhostTargets.map((target) => {
+                    const targetKey = serializeLocalhostTarget(target)
+
+                    return html`
                       <article class="port-card">
                         <div class="port-meta">
-                          <strong>localhost:${port}</strong>
-                          ${this.defaultLocalhostPort === port
+                          <strong>${formatLocalhostTarget(target)}</strong>
+                          ${this.defaultLocalhostTargetKey === targetKey
                             ? html`<span class="badge">默认</span>`
                             : null}
                         </div>
                         <div class="port-actions">
-                          ${this.defaultLocalhostPort === port
+                          ${this.defaultLocalhostTargetKey === targetKey
                             ? html`
                                 <button class="success" disabled>
                                   默认端口
@@ -390,25 +436,25 @@ export class OptionsApp extends LitElement {
                             : html`
                                 <button
                                   class="success"
-                                  @click=${() => this.setDefaultLocalhostPort(port)}
+                                  @click=${() => this.setDefaultLocalhostTarget(targetKey)}
                                 >
                                   设为默认
                                 </button>
                               `}
                           <button
                             class="danger"
-                            @click=${() => this.removeLocalhostPort(port)}
+                            @click=${() => this.removeLocalhostTarget(targetKey)}
                           >
                             删除
                           </button>
                         </div>
                       </article>
-                    `,
-                  )}
+                    `
+                  })}
                 </div>
               `}
           <p class="helper">
-            popup 中会以下拉列表展示这里保存的端口，并默认选中当前默认值。
+            popup 中会以下拉列表展示这里保存的注入目标，并默认选中当前默认值。
           </p>
         </section>
 
@@ -497,6 +543,13 @@ export class OptionsApp extends LitElement {
       { label: 'localStorage', value: 'localStorage' },
       { label: 'sessionStorage', value: 'sessionStorage' },
       { label: 'cookie', value: 'cookie' },
+    ]
+  }
+
+  private get localhostProtocolOptions(): SelectOption[] {
+    return [
+      { label: 'http', value: 'http' },
+      { label: 'https', value: 'https' },
     ]
   }
 

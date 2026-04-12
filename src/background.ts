@@ -4,7 +4,13 @@ import {
   toCookieMetadata,
 } from './shared/cookie-utils'
 import { ensureStorageInitialized } from './shared/storage'
-import type { BackgroundMessage, DatasetItem, PageInfo } from './shared/types'
+import type {
+  BackgroundMessage,
+  DatasetItem,
+  LocalhostTarget,
+  PageInfo,
+} from './shared/types'
+import { buildLocalhostUrl } from './shared/utils'
 
 chrome.runtime.onInstalled.addListener(() => {
   void ensureStorageInitialized()
@@ -77,7 +83,7 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
   }
 
   if (payload.type === 'OPEN_LOCALHOST_AND_APPLY_ITEMS') {
-    void openLocalhostAndApplyItems(payload.port, payload.items)
+    void openLocalhostAndApplyItems(payload.target, payload.items)
       .then((result) => sendResponse(result))
       .catch((error: unknown) => {
         sendResponse({
@@ -135,8 +141,8 @@ async function readCookies(url: string, keys: string[]): Promise<DatasetItem[]> 
   })
 }
 
-async function openLocalhostAndApplyItems(port: string, items: DatasetItem[]) {
-  const targetUrl = `http://localhost:${port}/`
+async function openLocalhostAndApplyItems(target: LocalhostTarget, items: DatasetItem[]) {
+  const targetUrl = buildLocalhostUrl(target)
   const tab = await chrome.tabs.create({
     url: targetUrl,
     active: true,

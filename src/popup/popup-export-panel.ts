@@ -5,8 +5,13 @@ import '../components/app-choice-card'
 import '../components/app-input'
 import type { SelectOption } from '../components/app-select'
 import { formatCookieMetadata } from '../shared/cookie-utils'
-import type { DatasetItem, PageInfo } from '../shared/types'
-import { previewValue, toRecordKey } from '../shared/utils'
+import type { DatasetItem, LocalhostTarget, PageInfo } from '../shared/types'
+import {
+  formatLocalhostTarget,
+  previewValue,
+  serializeLocalhostTarget,
+  toRecordKey,
+} from '../shared/utils'
 import '../components/app-select'
 
 @customElement('popup-export-panel')
@@ -27,10 +32,10 @@ export class PopupExportPanel extends LitElement {
   datasetName = ''
 
   @property()
-  selectedLocalhostPort = ''
+  selectedLocalhostTargetKey = ''
 
   @property({ attribute: false })
-  localhostPorts: string[] = []
+  localhostTargets: LocalhostTarget[] = []
 
   render() {
     return html`
@@ -39,6 +44,17 @@ export class PopupExportPanel extends LitElement {
           <div class="section-head">
             <h2>可导出项</h2>
             <span>${this.exportItems.length} 项</span>
+          </div>
+          <div class="actions top-actions">
+            <button
+              class="secondary wide"
+              @click=${() => this.emit('save-and-inject-request')}
+              ?disabled=${!this.selectedLocalhostTargetKey}
+            >
+              ${this.selectedLocalhostTargetLabel
+                ? `保存并注入到 ${this.selectedLocalhostTargetLabel}`
+                : '请先配置注入目标'}
+            </button>
           </div>
           <label class="stack">
             <span>数据集名称</span>
@@ -53,15 +69,15 @@ export class PopupExportPanel extends LitElement {
             ></app-input>
           </label>
           <label class="stack">
-            <span>注入目标端口</span>
+            <span>注入目标</span>
             <app-select
-              .options=${this.localhostPortOptions}
-              .value=${this.selectedLocalhostPort}
-              placeholder="请先在 options 中配置端口"
-              ?disabled=${this.localhostPorts.length === 0}
+              .options=${this.localhostTargetOptions}
+              .value=${this.selectedLocalhostTargetKey}
+              placeholder="请先在 options 中配置注入目标"
+              ?disabled=${this.localhostTargets.length === 0}
               @value-change=${(event: Event) =>
                 this.emit(
-                  'localhost-port-change',
+                  'localhost-target-change',
                   (event as CustomEvent<string>).detail,
                 )}
             ></app-select>
@@ -72,15 +88,6 @@ export class PopupExportPanel extends LitElement {
           <div class="actions">
             <button class="primary wide" @click=${() => this.emit('export-request')}>
               保存选中项为数据集
-            </button>
-            <button
-              class="secondary wide"
-              @click=${() => this.emit('save-and-inject-request')}
-              ?disabled=${!this.selectedLocalhostPort}
-            >
-              ${this.selectedLocalhostPort
-                ? `保存并注入到 localhost:${this.selectedLocalhostPort}`
-                : '请先配置 localhost 端口'}
             </button>
           </div>
         </section>
@@ -129,11 +136,19 @@ export class PopupExportPanel extends LitElement {
     `
   }
 
-  private get localhostPortOptions(): SelectOption[] {
-    return this.localhostPorts.map((port) => ({
-      label: `localhost:${port}`,
-      value: port,
+  private get localhostTargetOptions(): SelectOption[] {
+    return this.localhostTargets.map((target) => ({
+      label: formatLocalhostTarget(target),
+      value: serializeLocalhostTarget(target),
     }))
+  }
+
+  private get selectedLocalhostTargetLabel() {
+    const target = this.localhostTargets.find(
+      (item) => serializeLocalhostTarget(item) === this.selectedLocalhostTargetKey,
+    )
+
+    return target ? formatLocalhostTarget(target) : ''
   }
 
   private emit(name: string, detail?: unknown) {
@@ -250,6 +265,11 @@ export class PopupExportPanel extends LitElement {
       display: grid;
       gap: 10px;
       margin-top: 12px;
+    }
+
+    .top-actions {
+      margin-top: 10px;
+      margin-bottom: 12px;
     }
 
     .secondary {
