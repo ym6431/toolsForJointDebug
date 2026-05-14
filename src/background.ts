@@ -143,6 +143,11 @@ async function readCookies(url: string, keys: string[]): Promise<DatasetItem[]> 
 
 async function openLocalhostAndApplyItems(target: LocalhostTarget, items: DatasetItem[]) {
   const targetUrl = buildLocalhostUrl(target)
+  const cookieItems = items.filter(isCookieItem)
+  const storageItems = items.filter((item) => !isCookieItem(item))
+  const cookieResult = cookieItems.length > 0
+    ? await applyCookiesToUrl(targetUrl, cookieItems)
+    : { imported: 0, failed: [] }
   const tab = await chrome.tabs.create({
     url: targetUrl,
     active: true,
@@ -152,44 +157,77 @@ async function openLocalhostAndApplyItems(target: LocalhostTarget, items: Datase
     throw new Error('无法打开 localhost 目标页。')
   }
 
+  if (storageItems.length === 0) {
+    return buildLocalhostApplyResult({
+      targetUrl,
+      imported: cookieResult.imported,
+      failed: cookieResult.failed,
+      refreshed: false,
+      allItemsWereCookies: cookieItems.length > 0,
+    })
+  }
+
   try {
-    const response = await tryApplyItemsToTab(tab.id, items)
+    const response = await tryApplyItemsToTab(tab.id, storageItems)
+    const imported = cookieResult.imported + response.imported
+    const failed = [...cookieResult.failed, ...response.failed]
     const refreshed = response.imported > 0
       ? await refreshInjectedTab(tab.id)
       : false
 
-    return {
-      ok: response.failed.length === 0,
-      message:
-        response.failed.length === 0
-          ? `已打开 ${targetUrl}，并成功注入 ${response.imported} 项。${refreshed ? '页面已刷新以重新触发生命周期。' : ''}`
-          : `已打开 ${targetUrl}，成功注入 ${response.imported} 项，另有 ${response.failed.length} 项失败。${refreshed ? '页面已刷新以重新触发生命周期。' : ''}`,
-    }
-  } catch {
-    const cookieItems = items.filter((item) => item.storageType === 'cookie')
-
-    if (cookieItems.length === 0) {
-      return {
-        ok: false,
-        message: `已打开 ${targetUrl}，但页面未能完成状态注入，且当前没有可回退注入的 cookie。`,
-      }
-    }
-
-    const cookieResult = await applyCookiesToUrl(targetUrl, cookieItems)
-    const refreshed = cookieResult.imported > 0
-      ? await refreshInjectedTab(tab.id)
-      : false
+    return buildLocalhostApplyResult({
+      targetUrl,
+      imported,
+      failed,
+      refreshed,
+      allItemsWereCookies: false,
+    })
+  } catch (error) {
+    const failed = [
+      ...cookieResult.failed,
+      ...storageItems.map(
+        (item) =>
+          `${item.storageType}:${item.key} - ${
+            error instanceof Error ? error.message : '写入失败'
+          }`,
+      ),
+    ]
 
     return {
-      ok: cookieResult.imported > 0 && cookieResult.failed.length === 0,
+      ok: false,
       message:
         cookieResult.imported > 0
-          ? cookieResult.failed.length === 0
-            ? `已打开 ${targetUrl}。页面侧存储注入不可用，已回退注入 ${cookieResult.imported} 个 cookie。${refreshed ? '页面已刷新以重新触发生命周期。' : ''}`
-            : `已打开 ${targetUrl}。页面侧存储注入不可用，已回退注入 ${cookieResult.imported} 个 cookie，另有 ${cookieResult.failed.length} 个失败。${refreshed ? '页面已刷新以重新触发生命周期。' : ''}`
-          : `已打开 ${targetUrl}，但页面侧存储注入不可用，cookie 回退注入也未成功。`,
-      details: cookieResult.failed,
+          ? `已预先注入 ${cookieResult.imported} 个 cookie 并打开 ${targetUrl}，但页面侧状态注入失败。`
+          : `已打开 ${targetUrl}，但页面侧状态注入失败。`,
+      details: failed,
     }
+  }
+}
+
+function buildLocalhostApplyResult(options: {
+  targetUrl: string
+  imported: number
+  failed: string[]
+  refreshed: boolean
+  allItemsWereCookies: boolean
+}) {
+  const refreshMessage = options.refreshed
+    ? '页面已刷新以重新触发生命周期。'
+    : ''
+  const successMessage = options.allItemsWereCookies
+    ? `已预先注入 ${options.imported} 个 cookie，并打开 ${options.targetUrl}。`
+    : `已打开 ${options.targetUrl}，并成功注入 ${options.imported} 项。`
+  const partialMessage = options.allItemsWereCookies
+    ? `已打开 ${options.targetUrl}，成功预先注入 ${options.imported} 个 cookie，另有 ${options.failed.length} 个失败。`
+    : `已打开 ${options.targetUrl}，成功注入 ${options.imported} 项，另有 ${options.failed.length} 项失败。`
+
+  return {
+    ok: options.failed.length === 0,
+    message:
+      options.failed.length === 0
+        ? `${successMessage}${refreshMessage}`
+        : `${partialMessage}${refreshMessage}`,
+    details: options.failed.length > 0 ? options.failed : undefined,
   }
 }
 
