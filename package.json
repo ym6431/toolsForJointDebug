@@ -14,12 +14,14 @@
     "test:e2e:watch": "vitest --config vitest.e2e.config.ts"
   },
   "dependencies": {
+    "idb": "^8.0.3",
     "lit": "^3.3.2"
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.4.0",
     "@types/node": "^25.5.0",
     "chrome-types": "^0.1.425",
+    "fake-indexeddb": "^6.2.5",
     "typescript": "~5.9.3",
     "vite": "^8.0.1",
     "vitest": "^4.1.1",

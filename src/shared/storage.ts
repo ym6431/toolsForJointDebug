@@ -1,5 +1,20 @@
-import { DEFAULT_STORAGE_STATE, STORAGE_KEYS } from './constants'
-import type { ConfigItem, Dataset, LocalhostTarget, SaveDatasetInput } from './types'
+import { openDB } from 'idb'
+import type { DBSchema } from 'idb'
+import {
+  DEFAULT_STORAGE_STATE,
+  INDEXED_DB_KEY,
+  INDEXED_DB_NAME,
+  INDEXED_DB_STORE,
+  MAX_SAVED_DATASETS,
+  STORAGE_KEYS,
+} from './constants'
+import type {
+  AppStorageState,
+  ConfigItem,
+  Dataset,
+  LocalhostTarget,
+  SaveDatasetInput,
+} from './types'
 import {
   createId,
   dedupeConfig,
@@ -10,7 +25,22 @@ import {
   resolveDefaultLocalhostTargetKey,
 } from './utils'
 
-async function readStorageState() {
+interface AppDatabase extends DBSchema {
+  [INDEXED_DB_STORE]: {
+    key: string
+    value: AppStorageState
+  }
+}
+
+async function openStorageDatabase() {
+  return await openDB<AppDatabase>(INDEXED_DB_NAME, 1, {
+    upgrade(database) {
+      database.createObjectStore(INDEXED_DB_STORE)
+    },
+  })
+}
+
+async function readLegacyStorageState(): Promise<AppStorageState> {
   const result = await chrome.storage.local.get({
     [STORAGE_KEYS.datasets]: DEFAULT_STORAGE_STATE.datasets,
     [STORAGE_KEYS.customConfig]: DEFAULT_STORAGE_STATE.customConfig,
@@ -19,13 +49,11 @@ async function readStorageState() {
     [STORAGE_KEYS.legacyLocalhostPort]: '',
   })
   const localhostTargets = normalizeLocalhostTargetList(
-    Array.isArray(result[STORAGE_KEYS.localhostPorts])
-      ? (result[STORAGE_KEYS.localhostPorts] as unknown[])
-      : [],
+    Array.isArray(result[STORAGE_KEYS.localhostPorts]) ? result[STORAGE_KEYS.localhostPorts] : [],
   )
   const legacyLocalhostPort =
     typeof result[STORAGE_KEYS.legacyLocalhostPort] === 'string'
-      ? normalizeLocalhostTarget(result[STORAGE_KEYS.legacyLocalhostPort] as string)
+      ? normalizeLocalhostTarget(result[STORAGE_KEYS.legacyLocalhostPort])
       : null
   const normalizedTargets =
     localhostTargets.length > 0
@@ -41,30 +69,60 @@ async function readStorageState() {
   const defaultLocalhostPort = resolveDefaultLocalhostTargetKey(normalizedTargets, requestedDefaultPort)
 
   return {
-    datasets: (result[STORAGE_KEYS.datasets] as Dataset[]) ?? [],
-    customConfig: (result[STORAGE_KEYS.customConfig] as ConfigItem[]) ?? [],
+    datasets: limitDatasets(
+      Array.isArray(result[STORAGE_KEYS.datasets]) ? result[STORAGE_KEYS.datasets] : [],
+    ),
+    customConfig: dedupeConfig(
+      Array.isArray(result[STORAGE_KEYS.customConfig]) ? result[STORAGE_KEYS.customConfig] : [],
+    ),
     localhostPorts: normalizedTargets,
     defaultLocalhostPort,
   }
 }
 
-export async function ensureStorageInitialized() {
-  const state = await readStorageState()
+async function readStorageState() {
+  const database = await openStorageDatabase()
 
-  await chrome.storage.local.set({
-    [STORAGE_KEYS.datasets]: state.datasets,
-    [STORAGE_KEYS.customConfig]: state.customConfig,
-    [STORAGE_KEYS.localhostPorts]: state.localhostPorts,
-    [STORAGE_KEYS.defaultLocalhostPort]: state.defaultLocalhostPort,
-  })
+  try {
+    const storedState = await database.get(INDEXED_DB_STORE, INDEXED_DB_KEY)
+
+    if (storedState) {
+      return storedState
+    }
+
+    const migratedState = await readLegacyStorageState()
+    await database.put(INDEXED_DB_STORE, migratedState, INDEXED_DB_KEY)
+
+    return migratedState
+  } finally {
+    database.close()
+  }
+}
+
+async function saveStorageState(state: AppStorageState) {
+  const database = await openStorageDatabase()
+
+  try {
+    await database.put(INDEXED_DB_STORE, state, INDEXED_DB_KEY)
+  } finally {
+    database.close()
+  }
+}
+
+function limitDatasets(datasets: Dataset[]) {
+  return [...datasets]
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+    .slice(0, MAX_SAVED_DATASETS)
+}
+
+export async function ensureStorageInitialized() {
+  await readStorageState()
 }
 
 export async function getDatasets() {
   const state = await readStorageState()
 
-  return [...state.datasets].sort((left, right) =>
-    right.createdAt.localeCompare(left.createdAt),
-  )
+  return limitDatasets(state.datasets)
 }
 
 export async function saveDataset(input: SaveDatasetInput) {
@@ -77,8 +135,9 @@ export async function saveDataset(input: SaveDatasetInput) {
     items: dedupeDatasetItems(input.items),
   }
 
-  await chrome.storage.local.set({
-    [STORAGE_KEYS.datasets]: [dataset, ...state.datasets],
+  await saveStorageState({
+    ...state,
+    datasets: limitDatasets([dataset, ...state.datasets]),
   })
 
   return dataset
@@ -88,8 +147,9 @@ export async function deleteDataset(datasetId: string) {
   const state = await readStorageState()
   const nextDatasets = state.datasets.filter((dataset) => dataset.id !== datasetId)
 
-  await chrome.storage.local.set({
-    [STORAGE_KEYS.datasets]: nextDatasets,
+  await saveStorageState({
+    ...state,
+    datasets: nextDatasets,
   })
 
   return nextDatasets
@@ -110,15 +170,23 @@ export async function saveCustomConfig(items: ConfigItem[]) {
     })),
   )
 
-  await chrome.storage.local.set({
-    [STORAGE_KEYS.customConfig]: normalizedItems,
+  const state = await readStorageState()
+
+  await saveStorageState({
+    ...state,
+    customConfig: normalizedItems,
   })
 
   return normalizedItems
 }
 
 export async function resetCustomConfig() {
-  await chrome.storage.local.remove(STORAGE_KEYS.customConfig)
+  const state = await readStorageState()
+
+  await saveStorageState({
+    ...state,
+    customConfig: [],
+  })
 }
 
 export async function getLocalhostTargets() {
@@ -143,9 +211,12 @@ export async function saveLocalhostTargetConfig(
     defaultTargetKey,
   )
 
-  await chrome.storage.local.set({
-    [STORAGE_KEYS.localhostPorts]: normalizedTargets,
-    [STORAGE_KEYS.defaultLocalhostPort]: normalizedDefaultTargetKey,
+  const state = await readStorageState()
+
+  await saveStorageState({
+    ...state,
+    localhostPorts: normalizedTargets,
+    defaultLocalhostPort: normalizedDefaultTargetKey,
   })
 
   return {
@@ -163,8 +234,9 @@ export async function saveDefaultLocalhostTargetKey(targetKey: string) {
     : state.defaultLocalhostPort
       || resolveDefaultLocalhostTargetKey(state.localhostPorts, '')
 
-  await chrome.storage.local.set({
-    [STORAGE_KEYS.defaultLocalhostPort]: normalizedDefaultTargetKey,
+  await saveStorageState({
+    ...state,
+    defaultLocalhostPort: normalizedDefaultTargetKey,
   })
 
   return normalizedDefaultTargetKey

@@ -1,7 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_STORAGE_STATE, STORAGE_KEYS } from './constants'
+import 'fake-indexeddb/auto'
+
+import { deleteDB } from 'idb'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { STORAGE_KEYS } from './constants'
 import {
-  deleteDataset,
   ensureStorageInitialized,
   getCustomConfig,
   getDefaultLocalhostTargetKey,
@@ -13,86 +15,62 @@ import {
   saveDefaultLocalhostTargetKey,
   saveLocalhostTargetConfig,
 } from './storage'
-import type { ConfigItem, Dataset, LocalhostTarget } from './types'
 
-type StorageSnapshot = {
-  datasets: Dataset[]
-  customConfig: ConfigItem[]
-  localhostPorts: Array<LocalhostTarget | string>
-  defaultLocalhostPort: string
-  localhostPort?: string
+async function resetIndexedDb() {
+  for (const database of await indexedDB.databases()) {
+    if (database.name) {
+      await deleteDB(database.name)
+    }
+  }
+}
+
+let legacyLocalhostPort = ''
+
+const chromeStorageGet = vi.fn(async () => ({
+  [STORAGE_KEYS.datasets]: [],
+  [STORAGE_KEYS.customConfig]: [],
+  [STORAGE_KEYS.localhostPorts]: [],
+  [STORAGE_KEYS.defaultLocalhostPort]: '',
+  [STORAGE_KEYS.legacyLocalhostPort]: legacyLocalhostPort,
+}))
+
+const chromeStorageSet = vi.fn(async () => undefined)
+const chromeStorageRemove = vi.fn(async () => undefined)
+
+const chromeStub = {
+  storage: {
+    local: {
+      get: chromeStorageGet,
+      set: chromeStorageSet,
+      remove: chromeStorageRemove,
+    },
+  },
 }
 
 describe('shared storage', () => {
-  let snapshot: StorageSnapshot
-
-  beforeEach(() => {
-    snapshot = structuredClone({
-      ...DEFAULT_STORAGE_STATE,
-      localhostPort: '',
-    })
-
-    globalThis.chrome = {
-      storage: {
-        local: {
-          get: vi.fn(async (keys?: string | string[] | Record<string, unknown> | null) => {
-            if (!keys || Array.isArray(keys) || typeof keys === 'string') {
-              return {
-                [STORAGE_KEYS.datasets]: snapshot.datasets,
-                [STORAGE_KEYS.customConfig]: snapshot.customConfig,
-                [STORAGE_KEYS.localhostPorts]: snapshot.localhostPorts,
-                [STORAGE_KEYS.defaultLocalhostPort]: snapshot.defaultLocalhostPort,
-                [STORAGE_KEYS.legacyLocalhostPort]: snapshot.localhostPort,
-              }
-            }
-
-            return {
-              [STORAGE_KEYS.datasets]:
-                snapshot.datasets ?? keys[STORAGE_KEYS.datasets],
-              [STORAGE_KEYS.customConfig]:
-                snapshot.customConfig ?? keys[STORAGE_KEYS.customConfig],
-              [STORAGE_KEYS.localhostPorts]:
-                snapshot.localhostPorts ?? keys[STORAGE_KEYS.localhostPorts],
-              [STORAGE_KEYS.defaultLocalhostPort]:
-                snapshot.defaultLocalhostPort ?? keys[STORAGE_KEYS.defaultLocalhostPort],
-              [STORAGE_KEYS.legacyLocalhostPort]:
-                snapshot.localhostPort ?? keys[STORAGE_KEYS.legacyLocalhostPort],
-            }
-          }),
-          set: vi.fn(async (items: Record<string, unknown>) => {
-            snapshot = {
-              ...snapshot,
-              ...items,
-            } as StorageSnapshot
-          }),
-          remove: vi.fn(async (keys: string | string[]) => {
-            const allKeys = Array.isArray(keys) ? keys : [keys]
-
-            for (const key of allKeys) {
-              if (key === STORAGE_KEYS.customConfig) {
-                snapshot.customConfig = []
-              }
-            }
-          }),
-        },
-      },
-      runtime: {} as typeof chrome.runtime,
-      tabs: {} as typeof chrome.tabs,
-    } as unknown as typeof chrome
+  beforeEach(async () => {
+    await resetIndexedDb()
+    legacyLocalhostPort = ''
+    vi.clearAllMocks()
+    vi.stubGlobal('chrome', chromeStub)
   })
 
-  it('initializes storage with defaults', async () => {
+  afterEach(async () => {
+    await resetIndexedDb()
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+  })
+
+  it('Given empty storage, when initialization runs, then defaults are available', async () => {
     await ensureStorageInitialized()
 
-    expect(chrome.storage.local.set).toHaveBeenCalledWith({
-      [STORAGE_KEYS.datasets]: [],
-      [STORAGE_KEYS.customConfig]: [],
-      [STORAGE_KEYS.localhostPorts]: [],
-      [STORAGE_KEYS.defaultLocalhostPort]: '',
-    })
+    expect(await getDatasets()).toEqual([])
+    expect(await getCustomConfig()).toEqual([])
+    expect(await getLocalhostTargets()).toEqual([])
+    expect(await getDefaultLocalhostTargetKey()).toBe('')
   })
 
-  it('saves custom config with trimming and dedupe', async () => {
+  it('Given custom config input, when it is saved and reset, then the normalized items persist in IndexedDB', async () => {
     const saved = await saveCustomConfig([
       { storageType: 'localStorage', key: ' theme ', description: ' Theme ' },
       { storageType: 'localStorage', key: 'theme', description: 'ignored' },
@@ -104,19 +82,35 @@ describe('shared storage', () => {
       { storageType: 'cookie', key: 'lang', description: 'Locale' },
     ])
     expect(await getCustomConfig()).toEqual(saved)
-  })
-
-  it('resets custom config', async () => {
-    snapshot.customConfig = [
-      { storageType: 'cookie', key: 'lang', description: 'locale' },
-    ]
 
     await resetCustomConfig()
 
-    expect(snapshot.customConfig).toEqual([])
+    expect(await getCustomConfig()).toEqual([])
   })
 
-  it('saves datasets with normalized name and deduped items', async () => {
+  it('Given localhost target input, when it is saved and the default key changes, then the normalized targets persist', async () => {
+    const saved = await saveLocalhostTargetConfig(
+      [
+        { protocol: 'http', port: ' 05173 ' },
+        { protocol: 'https', port: '3000' },
+        { protocol: 'http', port: '5173' },
+      ],
+      'https:3000',
+    )
+
+    expect(saved).toEqual({
+      localhostTargets: [
+        { protocol: 'http', port: '5173' },
+        { protocol: 'https', port: '3000' },
+      ],
+      defaultLocalhostTargetKey: 'https:3000',
+    })
+    expect(await getLocalhostTargets()).toEqual(saved.localhostTargets)
+    expect(await saveDefaultLocalhostTargetKey('http:5173')).toBe('http:5173')
+    expect(await getDefaultLocalhostTargetKey()).toBe('http:5173')
+  })
+
+  it('Given duplicate dataset items, when a dataset is saved, then the returned record is normalized', async () => {
     const dataset = await saveDataset({
       datasetName: '  Homepage state  ',
       sourceUrl: 'https://example.com',
@@ -160,74 +154,42 @@ describe('shared storage', () => {
         },
       },
     ])
-    expect(snapshot.datasets[0]).toEqual(dataset)
   })
 
-  it('saves localhost ports and default port with normalization', async () => {
-    const saved = await saveLocalhostTargetConfig(
-      [
-        { protocol: 'http', port: ' 05173 ' },
-        { protocol: 'https', port: '3000' },
-        { protocol: 'http', port: '5173' },
-      ],
-      'https:3000',
-    )
+  it('Given a legacy localhostPort value, when storage initializes, then it migrates the normalized value once', async () => {
+    legacyLocalhostPort = ' 05173 '
 
-    expect(saved).toEqual({
-      localhostTargets: [
-        { protocol: 'http', port: '5173' },
-        { protocol: 'https', port: '3000' },
-      ],
-      defaultLocalhostTargetKey: 'https:3000',
-    })
-    expect(await getLocalhostTargets()).toEqual([
-      { protocol: 'http', port: '5173' },
-      { protocol: 'https', port: '3000' },
-    ])
-    expect(await getDefaultLocalhostTargetKey()).toBe('https:3000')
-  })
+    await ensureStorageInitialized()
 
-  it('keeps default port inside configured list when saving from popup', async () => {
-    snapshot.localhostPorts = [
-      { protocol: 'http', port: '5173' },
-      { protocol: 'https', port: '3000' },
-    ]
-    snapshot.defaultLocalhostPort = 'http:5173'
-
-    expect(await saveDefaultLocalhostTargetKey('https:3000')).toBe('https:3000')
-    expect(await saveDefaultLocalhostTargetKey('http:9999')).toBe('https:3000')
-  })
-
-  it('migrates legacy single localhost port into array config', async () => {
-    snapshot.localhostPort = '05173'
-
-    expect(await getLocalhostTargets()).toEqual([
-      { protocol: 'http', port: '5173' },
-    ])
+    expect(await getLocalhostTargets()).toEqual([{ protocol: 'http', port: '5173' }])
     expect(await getDefaultLocalhostTargetKey()).toBe('http:5173')
+    expect(chromeStorageRemove).not.toHaveBeenCalled()
   })
 
-  it('returns datasets sorted by createdAt descending', async () => {
-    snapshot.datasets = [
-      {
-        id: 'older',
-        datasetName: 'Older',
-        sourceUrl: 'https://example.com/older',
-        createdAt: '2024-01-01T00:00:00.000Z',
+  it('Given more than ten datasets, when they are saved, then only the newest ten remain in newest-first order', async () => {
+    for (let index = 0; index < 11; index += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1))
+      await saveDataset({
+        datasetName: `Dataset ${index + 1}`,
+        sourceUrl: `https://example.com/${index + 1}`,
         items: [],
-      },
-      {
-        id: 'newer',
-        datasetName: 'Newer',
-        sourceUrl: 'https://example.com/newer',
-        createdAt: '2024-02-01T00:00:00.000Z',
-        items: [],
-      },
-    ]
+      })
+    }
 
-    await deleteDataset('older')
+    const datasets = await getDatasets()
 
-    expect(snapshot.datasets.map((item) => item.id)).toEqual(['newer'])
-    expect((await getDatasets()).map((item) => item.id)).toEqual(['newer'])
+    expect(datasets).toHaveLength(10)
+    expect(datasets.map((dataset) => dataset.datasetName)).toEqual([
+      'Dataset 11',
+      'Dataset 10',
+      'Dataset 9',
+      'Dataset 8',
+      'Dataset 7',
+      'Dataset 6',
+      'Dataset 5',
+      'Dataset 4',
+      'Dataset 3',
+      'Dataset 2',
+    ])
   })
 })

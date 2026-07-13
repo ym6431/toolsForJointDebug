@@ -15,7 +15,7 @@
 ## 核心原则
 
 - 所有导出和导入都必须由用户手动触发
-- 数据仅保存在 `chrome.storage.local`
+- 数据保存在扩展自身的 IndexedDB 中
 - 导入前必须可见、可勾选、可确认
 
 ## 当前功能
@@ -59,7 +59,7 @@
 - `Vite`
 - `@crxjs/vite-plugin`
 - `Chrome Extension Manifest V3`
-- `chrome.storage.local`
+- IndexedDB（旧版 `chrome.storage.local` 数据会在首次启动时迁移）
 - `Vitest`
 - `vitest-environment-web-ext`
 - `Playwright`（由 e2e 测试环境带入）

@@ -1,0 +1,14 @@
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 57b2ef20a78c92f772b9e2e053dd784368b184b0..766103fbc7274af045e763a280cfa5b8bf2b4ca1 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -23,7 +23,8 @@ var WebExtBrowserManager = class {
+ 		];
+ 		if (this.options.devtools) webExtArgs.push("--auto-open-devtools-for-tabs");
+ 		this._context = await chromium.launchPersistentContext(userDataDir, {
+-			headless: false,
++			headless: true,
++			channel: "chromium",
+ 			slowMo: this.options.slowMo,
+ 			args: webExtArgs
+ 		});

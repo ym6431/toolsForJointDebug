@@ -12,9 +12,9 @@ const STORAGE_KEYS = {
   customConfig: 'customConfig',
   localhostPorts: 'localhostPorts',
   defaultLocalhostPort: 'defaultLocalhostPort',
+  legacyLocalhostPort: 'localhostPort',
 } as const
 
-type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS]
 type StorageRecord = Record<string, unknown>
 
 interface CookieLookupInput {
@@ -52,7 +52,8 @@ test.afterAll(async () => {
 
 test.beforeEach(async () => {
   await context.clearCookies()
-  await setExtensionStorage({
+  await clearExtensionChromeStorageLocal()
+  await setExtensionIndexedDbState({
     [STORAGE_KEYS.datasets]: [],
     [STORAGE_KEYS.customConfig]: [],
     [STORAGE_KEYS.localhostPorts]: [],
@@ -77,7 +78,7 @@ test('popup 应正确渲染基础界面', async () => {
 })
 
 test('popup 导入预览应展示 cookie 元信息', async () => {
-  await setExtensionStorage({
+  await setExtensionIndexedDbState({
     [STORAGE_KEYS.datasets]: [
       {
         id: 'dataset-cookie-preview',
@@ -152,13 +153,7 @@ test('options 页面应允许保存 cookie 配置和 localhost 端口', async ()
   expect(await optionsPage.getByText('配置已保存。').isVisible()).toBe(true)
   expect(await optionsPage.getByText('https://localhost:5173').isVisible()).toBe(true)
 
-  const storageState = await optionsPage.evaluate(async (keys) => {
-    return await chrome.storage.local.get(keys)
-  }, [
-    STORAGE_KEYS.customConfig,
-    STORAGE_KEYS.localhostPorts,
-    STORAGE_KEYS.defaultLocalhostPort,
-  ])
+  const storageState = await getExtensionIndexedDbState()
 
   expect(storageState[STORAGE_KEYS.customConfig]).toEqual([
     {
@@ -176,7 +171,7 @@ test('options 页面应允许保存 cookie 配置和 localhost 端口', async ()
 })
 
 test('popup 导出模式应加载已保存的默认 localhost 端口', async () => {
-  await setExtensionStorage({
+  await setExtensionIndexedDbState({
     [STORAGE_KEYS.localhostPorts]: [
       { protocol: 'http', port: '5173' },
       { protocol: 'https', port: '3000' },
@@ -209,15 +204,139 @@ test('popup 导出模式应加载已保存的默认 localhost 端口', async () 
       .isVisible(),
   ).toBe(true)
 
-  const storedDefaultPort = await popupPage.evaluate(async (key: StorageKey) => {
-    const result = await chrome.storage.local.get(key)
-
-    return result[key]
-  }, STORAGE_KEYS.defaultLocalhostPort)
+  const storedDefaultPort = (await getExtensionIndexedDbState())[STORAGE_KEYS.defaultLocalhostPort]
 
   expect(storedDefaultPort).toBe('http:5173')
 
   await popupPage.close()
+})
+
+test('popup 保存第十一组数据后应仅保留最新十组', async () => {
+  const sourceUrl = `http://127.0.0.1:${sourcePort}/`
+  const datasetKey = 'e2e-dataset-cap'
+  let sourcePage: Awaited<ReturnType<typeof context.newPage>> | null = null
+  let popupPage: Awaited<ReturnType<typeof browser.getPopupPage>> | null = null
+
+  try {
+    await setExtensionIndexedDbState({
+      [STORAGE_KEYS.datasets]: Array.from({ length: 10 }, (_, index) => makeDataset(index + 1)),
+      [STORAGE_KEYS.customConfig]: [
+        { storageType: 'localStorage', key: datasetKey, description: 'Dataset cap' },
+      ],
+    })
+    sourcePage = await context.newPage()
+    await sourcePage.goto(sourceUrl)
+    await sourcePage.evaluate(({ key, value }) => localStorage.setItem(key, value), {
+      key: datasetKey,
+      value: 'latest-value',
+    })
+    popupPage = await openPopupPageForTab(sourceUrl)
+    await popupPage.waitForLoadState('domcontentloaded')
+    await popupPage.getByRole('button', { name: '导出模式' }).click()
+    await popupPage.getByText('已扫描到 1 个可导出项。').waitFor()
+    await popupPage.locator('app-input input').first().fill('Newest saved dataset')
+    await popupPage.getByRole('button', { name: '保存选中项为数据集' }).click()
+    await popupPage.getByText('已保存数据集“Newest saved dataset”。').waitFor()
+    await popupPage.getByRole('button', { name: '导入模式' }).click()
+
+    expect(await popupPage.getByText('10 组', { exact: true }).isVisible()).toBe(true)
+    expect(await popupPage.getByText('Newest saved dataset', { exact: true }).isVisible()).toBe(true)
+    expect(await popupPage.getByText('Seed Dataset 1', { exact: true }).count()).toBe(0)
+    expect((await getExtensionIndexedDbState())[STORAGE_KEYS.datasets]).toHaveLength(10)
+  } finally {
+    await popupPage?.close().catch(() => {})
+    await sourcePage?.close().catch(() => {})
+  }
+})
+
+test('popup 首次启动应迁移旧 chrome.storage.local 数据', async () => {
+  const targetUrl = `http://localhost:${targetPort}/`
+  let targetPage: Awaited<ReturnType<typeof context.newPage>> | null = null
+  let popupPage: Awaited<ReturnType<typeof browser.getPopupPage>> | null = null
+
+  try {
+    await deleteExtensionIndexedDbState()
+    await setExtensionChromeStorageLocalState({
+      [STORAGE_KEYS.datasets]: [
+        {
+          id: 'legacy-dataset',
+          datasetName: 'Legacy dataset',
+          sourceUrl: 'https://example.com',
+          createdAt: '2024-01-01T00:00:00.000Z',
+          items: [{ storageType: 'localStorage', key: 'legacy-key', value: 'legacy-value' }],
+        },
+      ],
+      [STORAGE_KEYS.customConfig]: [
+        { storageType: 'localStorage', key: 'legacy-key', description: 'Legacy config' },
+      ],
+      [STORAGE_KEYS.localhostPorts]: [],
+      [STORAGE_KEYS.defaultLocalhostPort]: '',
+      [STORAGE_KEYS.legacyLocalhostPort]: ' 05173 ',
+    })
+    targetPage = await context.newPage()
+    await targetPage.goto(targetUrl)
+    popupPage = await openPopupPageForTab(targetUrl)
+    await popupPage.waitForLoadState('domcontentloaded')
+
+    expect(await popupPage.getByText('Legacy dataset', { exact: true }).isVisible()).toBe(true)
+    expect(await popupPage.getByText('legacy-key', { exact: true }).isVisible()).toBe(true)
+    const state = await getExtensionIndexedDbState()
+    expect(state[STORAGE_KEYS.localhostPorts]).toEqual([{ protocol: 'http', port: '5173' }])
+    expect(state[STORAGE_KEYS.defaultLocalhostPort]).toBe('http:5173')
+  } finally {
+    await clearExtensionChromeStorageLocal()
+    await popupPage?.close().catch(() => {})
+    await targetPage?.close().catch(() => {})
+  }
+})
+
+test('保存并注入应在源标签后打开目标标签', async () => {
+  const sourceUrl = `http://127.0.0.1:${sourcePort}/`
+  const targetUrl = `http://localhost:${targetPort}/`
+  const datasetKey = 'e2e-save-and-inject'
+  let sourcePage: Awaited<ReturnType<typeof context.newPage>> | null = null
+  let sentinelPage: Awaited<ReturnType<typeof context.newPage>> | null = null
+  let popupPage: Awaited<ReturnType<typeof browser.getPopupPage>> | null = null
+
+  try {
+    await setExtensionIndexedDbState({
+      [STORAGE_KEYS.customConfig]: [
+        { storageType: 'localStorage', key: datasetKey, description: 'Save and inject' },
+      ],
+      [STORAGE_KEYS.localhostPorts]: [{ protocol: 'http', port: String(targetPort) }],
+      [STORAGE_KEYS.defaultLocalhostPort]: `http:${targetPort}`,
+    })
+    sourcePage = await context.newPage()
+    await sourcePage.goto(sourceUrl)
+    await sourcePage.evaluate(({ key, value }) => localStorage.setItem(key, value), {
+      key: datasetKey,
+      value: 'injected-value',
+    })
+    sentinelPage = await context.newPage()
+    await sentinelPage.goto('about:blank')
+    await sourcePage.bringToFront()
+    const sourceTab = (await getExtensionTabsSnapshot()).find((tab) => tab.url === sourceUrl)
+
+    if (!sourceTab) {
+      throw new Error('Source tab was not found')
+    }
+
+    popupPage = await openPopupPageForTab(sourceUrl)
+    await popupPage.waitForLoadState('domcontentloaded')
+    await popupPage.getByRole('button', { name: '导出模式' }).click()
+    await popupPage.getByText('已扫描到 1 个可导出项。').waitFor()
+    await sourcePage.bringToFront()
+    await popupPage.getByRole('button', { name: `保存并注入到 http://localhost:${targetPort}` }).click()
+    await popupPage.getByText(`已打开 ${targetUrl}，并成功注入 1 项。`).waitFor()
+
+    const tabs = await getExtensionTabsSnapshot()
+    const targetTab = tabs.find((tab) => tab.url === targetUrl)
+    expect(targetTab?.index).toBe(sourceTab.index + 1)
+  } finally {
+    await popupPage?.close().catch(() => {})
+    await sentinelPage?.close().catch(() => {})
+    await sourcePage?.close().catch(() => {})
+  }
 })
 
 test('popup 应可从源页面导出 cookie 并导入到 localhost 页面', async () => {
@@ -233,7 +352,7 @@ test('popup 应可从源页面导出 cookie 并导入到 localhost 页面', asyn
   let importPopup: Awaited<ReturnType<typeof browser.getPopupPage>> | null = null
 
   try {
-    await setExtensionStorage({
+    await setExtensionIndexedDbState({
       [STORAGE_KEYS.customConfig]: [
         {
           storageType: 'cookie',
@@ -319,13 +438,114 @@ test('popup 应可从源页面导出 cookie 并导入到 localhost 页面', asyn
   }
 })
 
-async function setExtensionStorage(items: StorageRecord) {
+async function setExtensionIndexedDbState(items: StorageRecord) {
+  const serviceWorker = await browser.getServiceWorker()
+  const state = {
+    [STORAGE_KEYS.datasets]: [],
+    [STORAGE_KEYS.customConfig]: [],
+    [STORAGE_KEYS.localhostPorts]: [],
+    [STORAGE_KEYS.defaultLocalhostPort]: '',
+    ...items,
+  }
+
+  await serviceWorker.evaluate(async (payload: StorageRecord) => {
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open('frontend-state-migrator', 1)
+
+      request.onerror = () => reject(request.error)
+      request.onupgradeneeded = () => {
+        if (!request.result.objectStoreNames.contains('app-state')) {
+          request.result.createObjectStore('app-state')
+        }
+      }
+      request.onsuccess = () => {
+        const database = request.result
+        const transaction = database.transaction('app-state', 'readwrite')
+        const writeRequest = transaction.objectStore('app-state').put(payload, 'current')
+
+        writeRequest.onerror = () => reject(writeRequest.error)
+        transaction.oncomplete = () => {
+          database.close()
+          resolve()
+        }
+      }
+    })
+  }, state)
+}
+
+async function getExtensionIndexedDbState() {
+  const serviceWorker = await browser.getServiceWorker()
+
+  return await serviceWorker.evaluate(async () => {
+    return await new Promise<StorageRecord>((resolve, reject) => {
+      const request = indexedDB.open('frontend-state-migrator', 1)
+
+      request.onerror = () => reject(request.error)
+      request.onsuccess = () => {
+        const database = request.result
+        const transaction = database.transaction('app-state', 'readonly')
+        const readRequest = transaction.objectStore('app-state').get('current')
+
+        readRequest.onerror = () => reject(readRequest.error)
+        readRequest.onsuccess = () => {
+          database.close()
+          resolve(readRequest.result ?? {})
+        }
+      }
+    })
+  })
+}
+
+async function deleteExtensionIndexedDbState() {
+  const serviceWorker = await browser.getServiceWorker()
+
+  await serviceWorker.evaluate(async () => {
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.deleteDatabase('frontend-state-migrator')
+
+      request.onerror = () => reject(request.error)
+      request.onsuccess = () => resolve()
+    })
+  })
+}
+
+async function setExtensionChromeStorageLocalState(items: StorageRecord) {
   const serviceWorker = await browser.getServiceWorker()
 
   await serviceWorker.evaluate(async (payload: StorageRecord) => {
     await chrome.storage.local.clear()
     await chrome.storage.local.set(payload)
   }, items)
+}
+
+async function clearExtensionChromeStorageLocal() {
+  const serviceWorker = await browser.getServiceWorker()
+
+  await serviceWorker.evaluate(async () => {
+    await chrome.storage.local.clear()
+  })
+}
+
+async function getExtensionTabsSnapshot() {
+  const serviceWorker = await browser.getServiceWorker()
+
+  return await serviceWorker.evaluate(async () => {
+    const tabs = await chrome.tabs.query({})
+
+    return tabs.flatMap((tab) => tab.id !== undefined && tab.url !== undefined
+      ? [{ id: tab.id, index: tab.index, url: tab.url, active: tab.active }]
+      : [])
+  })
+}
+
+function makeDataset(index: number) {
+  return {
+    id: `seed-${index}`,
+    datasetName: `Seed Dataset ${index}`,
+    sourceUrl: `https://example.com/${index}`,
+    createdAt: `2024-01-${String(index).padStart(2, '0')}T00:00:00.000Z`,
+    items: [],
+  }
 }
 
 async function getCookieForUrl(url: string, name: string) {

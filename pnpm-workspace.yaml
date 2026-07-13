@@ -1,0 +1,2 @@
+patchedDependencies:
+  vitest-environment-web-ext@0.0.3: patches/vitest-environment-web-ext@0.0.3.patch

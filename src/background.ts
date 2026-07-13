@@ -99,7 +99,7 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
 })
 
 async function getActiveTab(): Promise<PageInfo> {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+  const tab = await getCurrentActiveTab()
 
   if (!tab?.id || !tab.url) {
     throw new Error('当前窗口没有可访问的活动页面。')
@@ -110,6 +110,12 @@ async function getActiveTab(): Promise<PageInfo> {
     url: tab.url,
     title: tab.title ?? 'Untitled tab',
   }
+}
+
+async function getCurrentActiveTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+
+  return tab
 }
 
 async function readCookies(url: string, keys: string[]): Promise<DatasetItem[]> {
@@ -148,9 +154,16 @@ async function openLocalhostAndApplyItems(target: LocalhostTarget, items: Datase
   const cookieResult = cookieItems.length > 0
     ? await applyCookiesToUrl(targetUrl, cookieItems)
     : { imported: 0, failed: [] }
+  const activeTab = await getCurrentActiveTab()
+
+  if (!activeTab) {
+    throw new Error('当前窗口没有可访问的活动页面。')
+  }
+
   const tab = await chrome.tabs.create({
     url: targetUrl,
     active: true,
+    index: activeTab.index + 1,
   })
 
   if (!tab.id) {
