@@ -15,7 +15,7 @@ Its purpose is to help developers manually migrate non-sensitive frontend state 
 ## Core Principles
 
 - All export and import actions must be manually triggered by the user.
-- Data must only be stored in `chrome.storage.local`.
+- Extension-owned state is stored in six normalized IndexedDB v2 stores; `chrome.storage.local` is legacy migration input only.
 - Imported data must remain visible, selectable, and confirmable in the UI.
 - Prefer keeping behavior explicit over clever automation.
 
@@ -55,7 +55,13 @@ Its purpose is to help developers manually migrate non-sensitive frontend state 
 ### Shared Modules
 
 - [src/shared/storage.ts](/home/my1346/project/aiTest/lit-ex-fro-session/src/shared/storage.ts)
-  Central storage access and normalization.
+  Preserved public storage API and legacy `chrome.storage.local` migration orchestration.
+
+- [src/shared/storage-db.ts](/home/my1346/project/aiTest/lit-ex-fro-session/src/shared/storage-db.ts)
+  IndexedDB v2 schema, upgrade migration, and typed persistence records.
+
+- [src/shared/storage-repository.ts](/home/my1346/project/aiTest/lit-ex-fro-session/src/shared/storage-repository.ts)
+  Normalized store transactions, hydration, retention, and cascade deletion.
 
 - [src/shared/types.ts](/home/my1346/project/aiTest/lit-ex-fro-session/src/shared/types.ts)
   Shared app types.
@@ -78,6 +84,8 @@ Prefer extending these primitives instead of introducing one-off form controls.
 
 ### Storage Handling
 
+- Datasets, dataset items, config, localhost targets, default target, and initialization metadata use separate IndexedDB v2 stores.
+- Existing IndexedDB v1 state and legacy `chrome.storage.local` values migrate once without deleting legacy Chrome storage keys.
 - `localStorage` and `sessionStorage` are read/written through the page bridge.
 - Cookie reading uses `chrome.cookies` in the background script.
 - Cookie injection can fall back to cookie-only behavior when full storage injection is unavailable.

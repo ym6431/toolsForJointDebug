@@ -59,10 +59,17 @@
 - `Vite`
 - `@crxjs/vite-plugin`
 - `Chrome Extension Manifest V3`
-- IndexedDB（旧版 `chrome.storage.local` 数据会在首次启动时迁移）
+- IndexedDB v2（支持旧版 IndexedDB v1 `app-state/current` 与 `chrome.storage.local` 两条迁移路径）
 - `Vitest`
 - `vitest-environment-web-ext`
 - `Playwright`（由 e2e 测试环境带入）
+
+扩展状态使用 IndexedDB v2 的独立对象存储保存数据集元数据、数据集项、配置、localhost 目标、默认目标和初始化元数据。
+
+### 迁移路径
+
+- **IndexedDB v1 `app-state/current`**：数据库升级到 v2 时，在同一升级事务内原子拆分为六个 v2 对象存储。
+- **`chrome.storage.local`**：尚未初始化 v2 数据库时，首次启动读取完整旧版状态并写入 v2；旧版 Chrome storage key 不会被删除。
 
 ## 项目结构
 
@@ -93,12 +100,21 @@
 │     ├─ base.css
 │     ├─ bridge-client.ts
 │     ├─ constants.ts
+│     ├─ storage-db.ts
+│     ├─ storage-repository.ts
 │     ├─ storage.ts
 │     ├─ storage.test.ts
+│     ├─ storage-v2-config.test.ts
+│     ├─ storage-v2-chrome-migration.test.ts
+│     ├─ storage-v2-repository.test.ts
+│     ├─ storage-v2-test-support.ts
+│     ├─ storage-v2.test.ts
 │     ├─ types.ts
 │     ├─ utils.ts
 │     └─ utils.test.ts
 ├─ test/
+│  ├─ extension-indexeddb-schema.ts
+│  ├─ extension-indexeddb-state.ts
 │  └─ extension.e2e.test.ts
 ├─ tsconfig.json
 ├─ vite.config.ts
@@ -222,8 +238,13 @@ interface Dataset {
 ### Localhost 目标配置
 
 ```ts
+interface LocalhostTarget {
+  protocol: 'http' | 'https'
+  port: string
+}
+
 interface LocalhostTargetConfig {
-  localhostPorts: string[]
+  localhostPorts: LocalhostTarget[]
   defaultLocalhostPort: string
 }
 ```
@@ -280,6 +301,8 @@ pnpm build
 
 - 基于 `Vitest`
 - 覆盖共享工具和存储模块
+- `test/extension-indexeddb-schema.ts`：供 e2e 场景验证 IndexedDB v2 的对象存储 schema。
+- `test/extension-indexeddb-state.ts`：供 e2e 场景读取并断言扩展 IndexedDB 的归一化状态。
 
 ### E2E 测试
 

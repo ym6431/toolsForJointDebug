@@ -6,6 +6,12 @@ import {
 } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { expect, test } from 'vitest'
+import {
+  deleteExtensionIndexedDbState,
+  getExtensionIndexedDbState,
+  setExtensionIndexedDbState,
+} from './extension-indexeddb-state'
+import type { AppStorageState } from '../src/shared/types'
 
 const STORAGE_KEYS = {
   datasets: 'datasets',
@@ -15,7 +21,9 @@ const STORAGE_KEYS = {
   legacyLocalhostPort: 'localhostPort',
 } as const
 
-type StorageRecord = Record<string, unknown>
+type LegacyChromeStorageState = AppStorageState & {
+  readonly localhostPort?: string
+}
 
 interface CookieLookupInput {
   url: string
@@ -438,81 +446,10 @@ test('popup 应可从源页面导出 cookie 并导入到 localhost 页面', asyn
   }
 })
 
-async function setExtensionIndexedDbState(items: StorageRecord) {
-  const serviceWorker = await browser.getServiceWorker()
-  const state = {
-    [STORAGE_KEYS.datasets]: [],
-    [STORAGE_KEYS.customConfig]: [],
-    [STORAGE_KEYS.localhostPorts]: [],
-    [STORAGE_KEYS.defaultLocalhostPort]: '',
-    ...items,
-  }
-
-  await serviceWorker.evaluate(async (payload: StorageRecord) => {
-    await new Promise<void>((resolve, reject) => {
-      const request = indexedDB.open('frontend-state-migrator', 1)
-
-      request.onerror = () => reject(request.error)
-      request.onupgradeneeded = () => {
-        if (!request.result.objectStoreNames.contains('app-state')) {
-          request.result.createObjectStore('app-state')
-        }
-      }
-      request.onsuccess = () => {
-        const database = request.result
-        const transaction = database.transaction('app-state', 'readwrite')
-        const writeRequest = transaction.objectStore('app-state').put(payload, 'current')
-
-        writeRequest.onerror = () => reject(writeRequest.error)
-        transaction.oncomplete = () => {
-          database.close()
-          resolve()
-        }
-      }
-    })
-  }, state)
-}
-
-async function getExtensionIndexedDbState() {
+async function setExtensionChromeStorageLocalState(items: LegacyChromeStorageState) {
   const serviceWorker = await browser.getServiceWorker()
 
-  return await serviceWorker.evaluate(async () => {
-    return await new Promise<StorageRecord>((resolve, reject) => {
-      const request = indexedDB.open('frontend-state-migrator', 1)
-
-      request.onerror = () => reject(request.error)
-      request.onsuccess = () => {
-        const database = request.result
-        const transaction = database.transaction('app-state', 'readonly')
-        const readRequest = transaction.objectStore('app-state').get('current')
-
-        readRequest.onerror = () => reject(readRequest.error)
-        readRequest.onsuccess = () => {
-          database.close()
-          resolve(readRequest.result ?? {})
-        }
-      }
-    })
-  })
-}
-
-async function deleteExtensionIndexedDbState() {
-  const serviceWorker = await browser.getServiceWorker()
-
-  await serviceWorker.evaluate(async () => {
-    await new Promise<void>((resolve, reject) => {
-      const request = indexedDB.deleteDatabase('frontend-state-migrator')
-
-      request.onerror = () => reject(request.error)
-      request.onsuccess = () => resolve()
-    })
-  })
-}
-
-async function setExtensionChromeStorageLocalState(items: StorageRecord) {
-  const serviceWorker = await browser.getServiceWorker()
-
-  await serviceWorker.evaluate(async (payload: StorageRecord) => {
+  await serviceWorker.evaluate(async (payload: LegacyChromeStorageState) => {
     await chrome.storage.local.clear()
     await chrome.storage.local.set(payload)
   }, items)

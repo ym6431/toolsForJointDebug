@@ -1,20 +1,14 @@
-import { openDB } from 'idb'
-import type { DBSchema } from 'idb'
+import { DEFAULT_STORAGE_STATE, MAX_SAVED_DATASETS, STORAGE_KEYS } from './constants'
 import {
-  DEFAULT_STORAGE_STATE,
-  INDEXED_DB_KEY,
-  INDEXED_DB_NAME,
-  INDEXED_DB_STORE,
-  MAX_SAVED_DATASETS,
-  STORAGE_KEYS,
-} from './constants'
-import type {
-  AppStorageState,
-  ConfigItem,
-  Dataset,
-  LocalhostTarget,
-  SaveDatasetInput,
-} from './types'
+  deleteNormalizedDataset,
+  initializeNormalizedStorageState,
+  readNormalizedStorageState,
+  replaceNormalizedCustomConfig,
+  replaceNormalizedLocalhostTargets,
+  saveNormalizedDataset,
+  saveNormalizedDefaultLocalhostTarget,
+} from './storage-repository'
+import type { AppStorageState, ConfigItem, Dataset, LocalhostTarget, SaveDatasetInput } from './types'
 import {
   createId,
   dedupeConfig,
@@ -24,21 +18,6 @@ import {
   normalizeLocalhostTargetList,
   resolveDefaultLocalhostTargetKey,
 } from './utils'
-
-interface AppDatabase extends DBSchema {
-  [INDEXED_DB_STORE]: {
-    key: string
-    value: AppStorageState
-  }
-}
-
-async function openStorageDatabase() {
-  return await openDB<AppDatabase>(INDEXED_DB_NAME, 1, {
-    upgrade(database) {
-      database.createObjectStore(INDEXED_DB_STORE)
-    },
-  })
-}
 
 async function readLegacyStorageState(): Promise<AppStorageState> {
   const result = await chrome.storage.local.get({
@@ -63,10 +42,9 @@ async function readLegacyStorageState(): Promise<AppStorageState> {
         : []
   const requestedDefaultPort =
     typeof result[STORAGE_KEYS.defaultLocalhostPort] === 'string'
-      || typeof result[STORAGE_KEYS.defaultLocalhostPort] === 'object'
+    || typeof result[STORAGE_KEYS.defaultLocalhostPort] === 'object'
       ? normalizeLocalhostTargetKey(result[STORAGE_KEYS.defaultLocalhostPort])
       : ''
-  const defaultLocalhostPort = resolveDefaultLocalhostTargetKey(normalizedTargets, requestedDefaultPort)
 
   return {
     datasets: limitDatasets(
@@ -76,37 +54,25 @@ async function readLegacyStorageState(): Promise<AppStorageState> {
       Array.isArray(result[STORAGE_KEYS.customConfig]) ? result[STORAGE_KEYS.customConfig] : [],
     ),
     localhostPorts: normalizedTargets,
-    defaultLocalhostPort,
+    defaultLocalhostPort: resolveDefaultLocalhostTargetKey(normalizedTargets, requestedDefaultPort),
   }
 }
 
-async function readStorageState() {
-  const database = await openStorageDatabase()
+async function readStorageState(): Promise<AppStorageState> {
+  const normalizedState = await readNormalizedStorageState()
 
-  try {
-    const storedState = await database.get(INDEXED_DB_STORE, INDEXED_DB_KEY)
-
-    if (storedState) {
-      return storedState
-    }
-
-    const migratedState = await readLegacyStorageState()
-    await database.put(INDEXED_DB_STORE, migratedState, INDEXED_DB_KEY)
-
-    return migratedState
-  } finally {
-    database.close()
+  if (normalizedState) {
+    return normalizedState
   }
-}
 
-async function saveStorageState(state: AppStorageState) {
-  const database = await openStorageDatabase()
+  const legacyState = await readLegacyStorageState()
+  const initialized = await initializeNormalizedStorageState(legacyState)
 
-  try {
-    await database.put(INDEXED_DB_STORE, state, INDEXED_DB_KEY)
-  } finally {
-    database.close()
+  if (initialized) {
+    return legacyState
   }
+
+  return (await readNormalizedStorageState()) ?? legacyState
 }
 
 function limitDatasets(datasets: Dataset[]) {
@@ -120,9 +86,7 @@ export async function ensureStorageInitialized() {
 }
 
 export async function getDatasets() {
-  const state = await readStorageState()
-
-  return limitDatasets(state.datasets)
+  return limitDatasets((await readStorageState()).datasets)
 }
 
 export async function saveDataset(input: SaveDatasetInput) {
@@ -135,30 +99,19 @@ export async function saveDataset(input: SaveDatasetInput) {
     items: dedupeDatasetItems(input.items),
   }
 
-  await saveStorageState({
-    ...state,
-    datasets: limitDatasets([dataset, ...state.datasets]),
-  })
+  await saveNormalizedDataset(dataset)
 
   return dataset
 }
 
 export async function deleteDataset(datasetId: string) {
-  const state = await readStorageState()
-  const nextDatasets = state.datasets.filter((dataset) => dataset.id !== datasetId)
+  await readStorageState()
 
-  await saveStorageState({
-    ...state,
-    datasets: nextDatasets,
-  })
-
-  return nextDatasets
+  return await deleteNormalizedDataset(datasetId)
 }
 
 export async function getCustomConfig() {
-  const state = await readStorageState()
-
-  return dedupeConfig(state.customConfig)
+  return dedupeConfig((await readStorageState()).customConfig)
 }
 
 export async function saveCustomConfig(items: ConfigItem[]) {
@@ -170,35 +123,23 @@ export async function saveCustomConfig(items: ConfigItem[]) {
     })),
   )
 
-  const state = await readStorageState()
-
-  await saveStorageState({
-    ...state,
-    customConfig: normalizedItems,
-  })
+  await readStorageState()
+  await replaceNormalizedCustomConfig(normalizedItems)
 
   return normalizedItems
 }
 
 export async function resetCustomConfig() {
-  const state = await readStorageState()
-
-  await saveStorageState({
-    ...state,
-    customConfig: [],
-  })
+  await readStorageState()
+  await replaceNormalizedCustomConfig([])
 }
 
 export async function getLocalhostTargets() {
-  const state = await readStorageState()
-
-  return state.localhostPorts
+  return (await readStorageState()).localhostPorts
 }
 
 export async function getDefaultLocalhostTargetKey() {
-  const state = await readStorageState()
-
-  return state.defaultLocalhostPort
+  return (await readStorageState()).defaultLocalhostPort
 }
 
 export async function saveLocalhostTargetConfig(
@@ -211,13 +152,8 @@ export async function saveLocalhostTargetConfig(
     defaultTargetKey,
   )
 
-  const state = await readStorageState()
-
-  await saveStorageState({
-    ...state,
-    localhostPorts: normalizedTargets,
-    defaultLocalhostPort: normalizedDefaultTargetKey,
-  })
+  await readStorageState()
+  await replaceNormalizedLocalhostTargets(normalizedTargets, normalizedDefaultTargetKey)
 
   return {
     localhostTargets: normalizedTargets,
@@ -231,13 +167,9 @@ export async function saveDefaultLocalhostTargetKey(targetKey: string) {
     (target) => normalizeLocalhostTargetKey(target) === targetKey,
   )
     ? targetKey
-    : state.defaultLocalhostPort
-      || resolveDefaultLocalhostTargetKey(state.localhostPorts, '')
+    : state.defaultLocalhostPort || resolveDefaultLocalhostTargetKey(state.localhostPorts, '')
 
-  await saveStorageState({
-    ...state,
-    defaultLocalhostPort: normalizedDefaultTargetKey,
-  })
+  await saveNormalizedDefaultLocalhostTarget(normalizedDefaultTargetKey)
 
   return normalizedDefaultTargetKey
 }
