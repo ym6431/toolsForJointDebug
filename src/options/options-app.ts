@@ -486,7 +486,7 @@ export class OptionsApp extends LitElement {
               覆盖导入
             </button>
             <button class="primary" @click=${this.saveAll}>保存全部配置</button>
-            <button class="secondary" @click=${this.restoreDefaults}>清空全部配置</button>
+            <button class="danger" @click=${this.restoreDefaults}>清空全部配置</button>
           </div>
           ${this.message ? html`<p class="message">${this.message}</p>` : null}
         </section>
@@ -556,8 +556,8 @@ export class OptionsApp extends LitElement {
   static styles = css`
     :host {
       display: block;
-      min-height: 100vh;
-      color: var(--color-text);
+      min-height: 100dvh;
+      color: var(--md-sys-color-on-surface);
     }
 
     *,
@@ -567,41 +567,52 @@ export class OptionsApp extends LitElement {
     }
 
     main {
-      max-width: 980px;
+      max-width: 1040px;
       margin: 0 auto;
-      padding: 32px 20px 48px;
+      padding: var(--space-8) var(--space-5) var(--space-12);
     }
 
     .hero,
     .panel {
-      background: var(--color-surface);
-      border: 1px solid var(--color-border);
-      border-radius: 18px;
+      background: var(--md-sys-color-surface-container-low);
+      border: 1px solid var(--md-sys-color-outline-variant);
     }
 
     .hero {
-      padding: 28px;
-      margin-bottom: 18px;
+      position: relative;
+      overflow: hidden;
+      padding: var(--space-8);
+      margin-bottom: var(--space-5);
+      border-radius: var(--shape-extra-large);
+      background:
+        linear-gradient(
+          135deg,
+          var(--md-sys-color-primary-container),
+          var(--md-sys-color-surface-container-low) 70%
+        );
+      box-shadow: var(--elevation-2);
     }
 
     .panel {
-      padding: 20px;
-      margin-bottom: 18px;
+      padding: var(--space-6);
+      margin-bottom: var(--space-5);
+      border-radius: var(--shape-large);
+      box-shadow: var(--elevation-1);
     }
 
     .eyebrow,
     .lead,
     .empty,
-    .message,
     .helper {
-      color: var(--color-text-muted);
+      color: var(--md-sys-color-on-surface-variant);
     }
 
     .eyebrow {
-      margin: 0 0 8px;
-      font-size: 12px;
+      margin: 0 0 var(--space-2);
+      font: var(--type-label-small);
       letter-spacing: 0.08em;
       text-transform: uppercase;
+      color: var(--md-sys-color-primary);
     }
 
     h1,
@@ -611,9 +622,13 @@ export class OptionsApp extends LitElement {
     }
 
     h1 {
-      font-size: 34px;
-      margin-bottom: 10px;
-      line-height: 1.1;
+      margin-bottom: var(--space-2);
+      font: var(--type-headline-large);
+      letter-spacing: -0.02em;
+    }
+
+    h2 {
+      font: var(--type-title-large);
     }
 
     .section-head,
@@ -625,30 +640,30 @@ export class OptionsApp extends LitElement {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
+      gap: var(--space-3);
     }
 
     .list,
     .port-list {
       display: grid;
-      gap: 12px;
-      margin-top: 14px;
+      gap: var(--space-3);
+      margin-top: var(--space-4);
     }
 
     .editor-grid,
     .config-card {
       display: grid;
-      gap: 12px;
+      gap: var(--space-3);
     }
 
     .editor-grid {
       grid-template-columns: 180px minmax(240px, 1.2fr) minmax(280px, 1.5fr);
-      margin-top: 14px;
+      margin-top: var(--space-4);
       align-items: start;
     }
 
     .port-editor {
-      margin-top: 14px;
+      margin-top: var(--space-4);
       align-items: end;
       justify-content: flex-start;
     }
@@ -658,16 +673,25 @@ export class OptionsApp extends LitElement {
     }
 
     .helper {
-      margin-top: 12px;
-      font-size: 13px;
+      margin-top: var(--space-3);
+      font: var(--type-body-small);
     }
 
     .config-card,
     .port-card {
-      border: 1px solid var(--color-border);
-      border-radius: 14px;
-      background: var(--color-surface-muted);
-      padding: 14px;
+      border: 1px solid var(--md-sys-color-outline-variant);
+      border-radius: var(--shape-medium);
+      background: var(--md-sys-color-surface-container);
+      padding: var(--space-4);
+      transition:
+        background-color var(--motion-short),
+        border-color var(--motion-short);
+    }
+
+    .config-card:hover,
+    .port-card:hover {
+      border-color: var(--md-sys-color-outline);
+      background: var(--md-sys-color-surface-container-high);
     }
 
     .config-card {
@@ -678,29 +702,28 @@ export class OptionsApp extends LitElement {
     .badge {
       display: inline-flex;
       align-items: center;
-      border-radius: 999px;
-      padding: 4px 9px;
-      background: var(--color-badge-bg);
-      color: var(--color-badge-text);
-      font-weight: 600;
-      font-size: 12px;
+      border-radius: var(--shape-full);
+      padding: var(--space-1) var(--space-2);
+      background: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+      font: var(--type-label-small);
     }
 
     .field {
       display: grid;
-      gap: 6px;
+      gap: var(--space-2);
       min-width: 0;
     }
 
     label,
     .field {
-      color: var(--color-text);
-      font-weight: 600;
+      color: var(--md-sys-color-on-surface);
+      font: var(--type-label-large);
     }
 
     .field span {
-      font-size: 12px;
-      color: var(--color-text-muted);
+      font: var(--type-body-small);
+      color: var(--md-sys-color-on-surface-variant);
     }
 
     .field-action {
@@ -713,55 +736,103 @@ export class OptionsApp extends LitElement {
 
     button:disabled {
       cursor: not-allowed;
-      background: var(--color-disabled-bg);
-      border: 1px solid var(--color-disabled-border);
+      background: var(--md-sys-color-surface-container);
       color: var(--color-disabled-text);
+      box-shadow: none;
     }
 
     .actions {
-      margin-top: 16px;
+      margin-top: var(--space-5);
       justify-content: flex-start;
       flex-wrap: wrap;
     }
 
     button {
       border: none;
-      border-radius: 10px;
-      padding: 10px 14px;
+      min-height: 40px;
+      border-radius: var(--shape-full);
+      padding: var(--space-2) var(--space-4);
+      font: var(--type-label-large);
       cursor: pointer;
       transition:
-        background-color 0.18s ease,
-        color 0.18s ease,
-        opacity 0.18s ease;
+        background-color var(--motion-short),
+        color var(--motion-short),
+        box-shadow var(--motion-short),
+        transform var(--motion-short);
+    }
+
+    button:hover:not(:disabled) {
+      box-shadow: var(--elevation-1);
+    }
+
+    button:active:not(:disabled) {
+      transform: translateY(1px);
+    }
+
+    button:focus-visible {
+      outline: 2px solid var(--md-sys-color-primary);
+      outline-offset: 2px;
     }
 
     .primary {
-      background: var(--color-accent);
-      color: var(--color-accent-contrast);
-      font-weight: 700;
+      background: var(--md-sys-color-primary);
+      color: var(--md-sys-color-on-primary);
+    }
+
+    .primary:hover:not(:disabled) {
+      background: color-mix(
+        in srgb,
+        var(--md-sys-color-primary) 88%,
+        var(--md-sys-color-on-primary)
+      );
     }
 
     .secondary {
-      background: var(--color-secondary-bg);
-      color: var(--color-secondary-text);
+      background: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+    }
+
+    .secondary:hover:not(:disabled) {
+      background: color-mix(
+        in srgb,
+        var(--md-sys-color-primary-container) 88%,
+        var(--md-sys-color-on-primary-container)
+      );
     }
 
     .danger {
-      background: var(--color-danger-bg);
-      color: var(--color-danger-text);
-      font-weight: 600;
+      background: var(--md-sys-color-error-container);
+      color: var(--md-sys-color-on-error-container);
+    }
+
+    .danger:hover:not(:disabled) {
+      background: color-mix(
+        in srgb,
+        var(--md-sys-color-error-container) 84%,
+        var(--md-sys-color-error)
+      );
     }
 
     .success {
-      background: var(--color-success-bg);
-      color: var(--color-success-text);
-      border: 1px solid var(--color-success-border);
-      font-weight: 600;
+      background: var(--app-color-success-container);
+      color: var(--app-color-on-success-container);
+    }
+
+    .success:hover:not(:disabled) {
+      background: color-mix(
+        in srgb,
+        var(--app-color-success-container) 84%,
+        var(--app-color-success)
+      );
     }
 
     .message {
-      margin-top: 14px;
-      font-size: 13px;
+      margin-top: var(--space-4);
+      padding: var(--space-3) var(--space-4);
+      border-radius: var(--shape-medium);
+      background: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+      font: var(--type-body-medium);
     }
 
     .visually-hidden {
@@ -777,6 +848,15 @@ export class OptionsApp extends LitElement {
     }
 
     @media (max-width: 900px) {
+      main {
+        padding: var(--space-4) var(--space-3) var(--space-8);
+      }
+
+      .hero,
+      .panel {
+        padding: var(--space-5);
+      }
+
       .editor-grid,
       .config-card {
         grid-template-columns: 1fr;
@@ -798,6 +878,11 @@ export class OptionsApp extends LitElement {
       .port-meta {
         align-items: flex-start;
         flex-direction: column;
+      }
+
+      .port-actions button,
+      .actions button {
+        flex: 1 1 auto;
       }
     }
   `

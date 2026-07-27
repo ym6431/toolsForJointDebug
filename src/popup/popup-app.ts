@@ -557,7 +557,7 @@ export class PopupApp extends LitElement {
       display: block;
       width: 880px;
       max-width: 100vw;
-      color: var(--color-text);
+      color: var(--md-sys-color-on-surface);
     }
 
     *,
@@ -567,7 +567,7 @@ export class PopupApp extends LitElement {
     }
 
     main {
-      padding: 16px;
+      padding: var(--space-5);
     }
 
     header,
@@ -575,11 +575,21 @@ export class PopupApp extends LitElement {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
+      gap: var(--space-4);
     }
 
     header {
-      margin-bottom: 14px;
+      margin-bottom: var(--space-4);
+      padding: var(--space-4) var(--space-5);
+      border: 1px solid var(--md-sys-color-outline-variant);
+      border-radius: var(--shape-extra-large);
+      background:
+        linear-gradient(
+          135deg,
+          var(--md-sys-color-primary-container),
+          var(--md-sys-color-surface-container-low) 72%
+        );
+      box-shadow: var(--elevation-2);
     }
 
     h1,
@@ -589,95 +599,122 @@ export class PopupApp extends LitElement {
     }
 
     h1 {
-      font-size: 22px;
-      line-height: 1.15;
+      font: var(--type-headline-small);
+      letter-spacing: -0.01em;
     }
 
     h2 {
-      font-size: 15px;
+      font: var(--type-title-medium);
     }
 
     .eyebrow {
-      font-size: 12px;
-      color: var(--color-text-muted);
+      margin-bottom: var(--space-1);
+      font: var(--type-label-small);
+      color: var(--md-sys-color-primary);
       text-transform: uppercase;
       letter-spacing: 0.08em;
     }
 
     .panel,
     .mode-panel {
-      background: var(--color-surface);
-      border: 1px solid var(--color-border);
-      border-radius: 16px;
-      padding: 14px;
-      margin-bottom: 14px;
+      background: var(--md-sys-color-surface-container-low);
+      border: 1px solid var(--md-sys-color-outline-variant);
+      border-radius: var(--shape-large);
+      padding: var(--space-4);
+      margin-bottom: var(--space-4);
+      box-shadow: var(--elevation-1);
     }
 
     popup-export-panel,
     popup-import-panel {
       display: block;
-      margin-bottom: 14px;
+      margin-bottom: var(--space-4);
     }
 
     .mode-tip {
-      margin-top: 6px;
-      color: var(--color-text-muted);
-      font-size: 12px;
+      margin-top: var(--space-1);
+      color: var(--md-sys-color-on-surface-variant);
+      font: var(--type-body-small);
     }
 
     .mode-switch {
       display: inline-grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      padding: 4px;
-      border-radius: 999px;
-      background: var(--color-secondary-bg);
-      gap: 4px;
+      padding: var(--space-1);
+      border: 1px solid var(--md-sys-color-outline-variant);
+      border-radius: var(--shape-full);
+      background: var(--md-sys-color-surface-container);
+      gap: var(--space-1);
       min-width: 220px;
     }
 
     .mode-button,
     .secondary {
       border: none;
-      border-radius: 999px;
-      padding: 10px 14px;
-      font: inherit;
+      min-height: 40px;
+      border-radius: var(--shape-full);
+      padding: var(--space-2) var(--space-4);
+      font: var(--type-label-large);
       cursor: pointer;
       transition:
-        background-color 0.18s ease,
-        color 0.18s ease,
-        opacity 0.18s ease;
+        background-color var(--motion-short),
+        color var(--motion-short),
+        box-shadow var(--motion-short),
+        transform var(--motion-short);
+    }
+
+    .mode-button:hover,
+    .secondary:hover {
+      background: var(--md-sys-color-surface-container-highest);
+    }
+
+    header .secondary {
+      flex: none;
+      white-space: nowrap;
+    }
+
+    .mode-button:active,
+    .secondary:active {
+      transform: translateY(1px);
+    }
+
+    .mode-button:focus-visible,
+    .secondary:focus-visible {
+      outline: 2px solid var(--md-sys-color-primary);
+      outline-offset: 2px;
     }
 
     .mode-button {
       background: transparent;
-      color: var(--color-text-muted);
-      font-weight: 600;
+      color: var(--md-sys-color-on-surface-variant);
     }
 
     .mode-button.active {
-      background: var(--color-surface);
-      color: var(--color-text-strong);
-      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+      background: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+      box-shadow: var(--elevation-1);
     }
 
     .secondary {
-      background: var(--color-secondary-bg);
-      color: var(--color-secondary-text);
+      background: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
     }
 
     .result.ok {
-      border-color: var(--color-success-border);
-      background: var(--color-success-bg);
+      border-color: var(--app-color-success);
+      background: var(--app-color-success-container);
+      color: var(--app-color-on-success-container);
     }
 
     .result.error {
-      border-color: var(--color-error-border);
-      background: var(--color-error-bg);
+      border-color: var(--md-sys-color-error);
+      background: var(--md-sys-color-error-container);
+      color: var(--md-sys-color-on-error-container);
     }
 
     ul {
-      margin: 10px 0 0;
-      padding-left: 18px;
+      margin: var(--space-2) 0 0;
+      padding-left: var(--space-5);
     }
 
     @media (max-width: 900px) {
@@ -688,6 +725,14 @@ export class PopupApp extends LitElement {
       .mode-head {
         align-items: stretch;
         flex-direction: column;
+      }
+
+      main {
+        padding: var(--space-3);
+      }
+
+      header {
+        border-radius: var(--shape-large);
       }
 
       .mode-switch {

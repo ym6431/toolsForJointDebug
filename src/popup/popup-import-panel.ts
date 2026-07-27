@@ -171,21 +171,22 @@ export class PopupImportPanel extends LitElement {
     .workspace {
       display: grid;
       grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
-      gap: 14px;
+      gap: var(--space-4);
       align-items: start;
     }
 
     .column {
       min-width: 0;
       display: grid;
-      gap: 14px;
+      gap: var(--space-4);
     }
 
     .panel {
-      background: var(--color-surface);
-      border: 1px solid var(--color-border);
-      border-radius: 16px;
-      padding: 14px;
+      background: var(--md-sys-color-surface-container-low);
+      border: 1px solid var(--md-sys-color-outline-variant);
+      border-radius: var(--shape-large);
+      padding: var(--space-4);
+      box-shadow: var(--elevation-1);
     }
 
     .section-head,
@@ -193,7 +194,7 @@ export class PopupImportPanel extends LitElement {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
+      gap: var(--space-3);
     }
 
     h2,
@@ -202,48 +203,47 @@ export class PopupImportPanel extends LitElement {
     }
 
     h2 {
-      font-size: 15px;
+      font: var(--type-title-medium);
     }
 
     .page-title,
     .dataset-source {
       font-weight: 600;
-      margin-top: 10px;
-      color: var(--color-text-strong);
+      margin-top: var(--space-3);
+      color: var(--md-sys-color-on-surface);
     }
 
     .page-url {
-      margin-top: 6px;
-      color: var(--color-text-muted);
+      margin-top: var(--space-1);
+      color: var(--md-sys-color-on-surface-variant);
       word-break: break-all;
-      font-size: 12px;
+      font: var(--type-body-small);
     }
 
     .item-meta {
       display: grid;
-      gap: 8px;
+      gap: var(--space-2);
       min-width: 0;
     }
 
     .badge {
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--color-badge-text);
-      background: var(--color-badge-bg);
-      border-radius: 999px;
-      padding: 3px 8px;
+      font: var(--type-label-small);
+      color: var(--md-sys-color-on-primary-container);
+      background: var(--md-sys-color-primary-container);
+      border-radius: var(--shape-full);
+      padding: var(--space-1) var(--space-2);
     }
 
     .dataset-meta {
       display: grid;
-      gap: 4px;
+      gap: var(--space-1);
       flex: 1;
       min-width: 0;
     }
 
     .dataset-meta span {
-      color: var(--color-text-muted);
-      font-size: 12px;
+      color: var(--md-sys-color-on-surface-variant);
+      font: var(--type-body-small);
       word-break: break-all;
     }
 
@@ -254,70 +254,106 @@ export class PopupImportPanel extends LitElement {
 
     .cookie-meta {
       margin: 0;
-      font-size: 12px;
-      color: var(--color-text-muted);
+      font: var(--type-body-small);
+      color: var(--md-sys-color-on-surface-variant);
       line-height: 1.5;
       word-break: break-word;
     }
 
     .dataset-list {
       display: grid;
-      gap: 10px;
+      gap: var(--space-2);
     }
 
     button {
       font: inherit;
       border: none;
-      border-radius: 10px;
-      padding: 10px 14px;
+      min-height: 40px;
+      border-radius: var(--shape-full);
+      padding: var(--space-2) var(--space-4);
+      font: var(--type-label-large);
       cursor: pointer;
       transition:
-        background-color 0.18s ease,
-        color 0.18s ease,
-        opacity 0.18s ease;
+        background-color var(--motion-short),
+        color var(--motion-short),
+        box-shadow var(--motion-short),
+        transform var(--motion-short);
+    }
+
+    button:hover:not(:disabled) {
+      box-shadow: var(--elevation-1);
+    }
+
+    button:active:not(:disabled) {
+      transform: translateY(1px);
+    }
+
+    button:focus-visible {
+      outline: 2px solid var(--md-sys-color-primary);
+      outline-offset: 2px;
     }
 
     button:disabled {
-      opacity: 0.55;
+      opacity: 0.64;
       cursor: default;
     }
 
     .primary {
-      background: var(--color-accent);
-      color: var(--color-accent-contrast);
-      font-weight: 700;
+      background: var(--md-sys-color-primary);
+      color: var(--md-sys-color-on-primary);
+    }
+
+    .primary:hover:not(:disabled) {
+      background: color-mix(
+        in srgb,
+        var(--md-sys-color-primary) 88%,
+        var(--md-sys-color-on-primary)
+      );
     }
 
     .secondary {
-      background: var(--color-secondary-bg);
-      color: var(--color-secondary-text);
+      background: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+    }
+
+    .secondary:hover:not(:disabled) {
+      background: color-mix(
+        in srgb,
+        var(--md-sys-color-primary-container) 88%,
+        var(--md-sys-color-on-primary-container)
+      );
     }
 
     .ghost {
       background: transparent;
-      color: var(--color-danger-text);
-      padding-inline: 10px;
+      color: var(--md-sys-color-error);
+      padding-inline: var(--space-3);
+    }
+
+    .ghost:hover:not(:disabled) {
+      background: var(--md-sys-color-error-container);
     }
 
     .wide {
       width: 100%;
-      margin-top: 12px;
+      margin-top: var(--space-4);
     }
 
     .empty {
-      color: var(--color-text-muted);
-      margin-top: 12px;
+      color: var(--md-sys-color-on-surface-variant);
+      margin-top: var(--space-4);
     }
 
     code {
       display: block;
       white-space: pre-wrap;
       word-break: break-all;
-      background: var(--color-code-bg);
-      border-radius: 10px;
-      padding: 8px 10px;
-      color: var(--color-code-text);
-      font-size: 12px;
+      background: var(--app-color-code-surface);
+      border-radius: var(--shape-small);
+      padding: var(--space-2) var(--space-3);
+      color: var(--app-color-code-text);
+      font: var(--type-body-small);
+      font-family: var(--font-mono);
     }
 
     @media (max-width: 900px) {

@@ -68,13 +68,43 @@ export class AppChoiceCard extends LitElement {
 
     .card {
       display: flex;
-      align-items: flex-start;
-      gap: 12px;
-      border: 1px solid var(--color-border);
-      border-radius: 12px;
-      padding: 10px 12px;
-      background: var(--color-surface-muted);
-      margin-top: 10px;
+      align-items: center;
+      gap: var(--space-3);
+      min-height: 56px;
+      border: 1px solid var(--md-sys-color-outline-variant);
+      border-radius: var(--shape-medium);
+      padding: var(--space-3) var(--space-4);
+      background: var(--md-sys-color-surface-container-low);
+      transition:
+        background-color var(--motion-short),
+        border-color var(--motion-short),
+        box-shadow var(--motion-short),
+        transform var(--motion-short);
+    }
+
+    .card:hover:not(:has(input:disabled)) {
+      background: var(--md-sys-color-surface-container);
+      border-color: var(--md-sys-color-outline);
+    }
+
+    .card:has(input:checked) {
+      border-color: var(--md-sys-color-primary);
+      background: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+    }
+
+    .card:focus-within {
+      border-color: var(--md-sys-color-primary);
+      box-shadow: var(--focus-ring);
+    }
+
+    .card:active {
+      transform: translateY(1px);
+    }
+
+    .card:has(input:disabled) {
+      cursor: not-allowed;
+      opacity: 0.56;
     }
 
     .control {
@@ -82,7 +112,7 @@ export class AppChoiceCard extends LitElement {
       flex: 1;
       display: grid;
       grid-template-columns: auto 1fr;
-      gap: 10px;
+      gap: var(--space-3);
       align-items: start;
       cursor: pointer;
     }
@@ -92,11 +122,13 @@ export class AppChoiceCard extends LitElement {
     }
 
     input {
-      width: 16px;
-      height: 16px;
+      width: 18px;
+      height: 18px;
       margin: 2px 0 0;
       padding: 0;
       flex: none;
+      accent-color: var(--md-sys-color-primary);
+      cursor: inherit;
     }
 
     ::slotted([slot='action']) {

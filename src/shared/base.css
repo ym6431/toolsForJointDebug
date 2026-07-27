@@ -1,81 +1,190 @@
 :root {
   color-scheme: light dark;
-  font-family:
-    'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
-    sans-serif;
+  font-family: var(--font-sans);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  --color-bg: #f3f4f6;
-  --color-surface: #ffffff;
-  --color-surface-muted: #f9fafb;
-  --color-border: #e5e7eb;
-  --color-border-strong: #d1d5db;
-  --color-text: #1f2937;
-  --color-text-strong: #111827;
-  --color-text-muted: #6b7280;
-  --color-accent: #2563eb;
-  --color-accent-contrast: #ffffff;
-  --color-secondary-bg: #f3f4f6;
-  --color-secondary-text: #1f2937;
-  --color-danger-bg: #fef2f2;
-  --color-danger-text: #b91c1c;
-  --color-success-bg: #f0fdf4;
-  --color-success-border: #bbf7d0;
-  --color-success-text: #166534;
-  --color-error-bg: #fef2f2;
-  --color-error-border: #fecaca;
-  --color-badge-bg: #e5e7eb;
-  --color-badge-text: #374151;
-  --color-code-bg: #111827;
-  --color-code-text: #f9fafb;
-  --color-disabled-bg: #f3f4f6;
-  --color-disabled-border: #e5e7eb;
-  --color-disabled-text: #9ca3af;
-  background: var(--color-bg);
-  color: var(--color-text);
+
+  --md-sys-color-surface: #f9f9ff;
+  --md-sys-color-surface-dim: #dad9e0;
+  --md-sys-color-surface-container-low: #f3f3fa;
+  --md-sys-color-surface-container: #edecf3;
+  --md-sys-color-surface-container-high: #e7e6ed;
+  --md-sys-color-surface-container-highest: #e1e1e8;
+  --md-sys-color-on-surface: #1a1b20;
+  --md-sys-color-on-surface-variant: #45464f;
+  --md-sys-color-outline: #767680;
+  --md-sys-color-outline-variant: #c6c5d0;
+  --md-sys-color-primary: #4f55a7;
+  --md-sys-color-on-primary: #ffffff;
+  --md-sys-color-primary-container: #e0e0ff;
+  --md-sys-color-on-primary-container: #171e60;
+  --md-sys-color-error: #ba1a1a;
+  --md-sys-color-error-container: #ffdad6;
+  --md-sys-color-on-error-container: #410002;
+  --app-color-success: #316b4d;
+  --app-color-success-container: #b9f2ce;
+  --app-color-on-success-container: #002111;
+  --app-color-code-surface: #202127;
+  --app-color-code-text: #f2f0f7;
+  --app-color-scrim: rgb(17 19 24 / 12%);
+
+  --font-sans:
+    Roboto, 'Noto Sans SC', 'Noto Sans CJK SC', 'WenQuanYi Micro Hei',
+    'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+    sans-serif;
+  --font-mono: 'Roboto Mono', 'SFMono-Regular', Consolas, monospace;
+  --type-headline-large: 500 2rem/2.5rem var(--font-sans);
+  --type-headline-small: 500 1.5rem/2rem var(--font-sans);
+  --type-title-large: 500 1.375rem/1.75rem var(--font-sans);
+  --type-title-medium: 600 1rem/1.5rem var(--font-sans);
+  --type-body-medium: 400 0.875rem/1.25rem var(--font-sans);
+  --type-body-small: 400 0.75rem/1rem var(--font-sans);
+  --type-label-large: 600 0.875rem/1.25rem var(--font-sans);
+  --type-label-small: 600 0.6875rem/1rem var(--font-sans);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  --shape-extra-small: 4px;
+  --shape-small: 8px;
+  --shape-medium: 12px;
+  --shape-large: 16px;
+  --shape-extra-large: 24px;
+  --shape-full: 999px;
+
+  --motion-short: 150ms cubic-bezier(0.2, 0, 0, 1);
+  --motion-medium: 250ms cubic-bezier(0.2, 0, 0, 1);
+  --elevation-1:
+    0 1px 2px rgb(45 47 63 / 18%), 0 1px 3px 1px rgb(45 47 63 / 10%);
+  --elevation-2:
+    0 2px 6px 2px rgb(45 47 63 / 12%), 0 1px 2px rgb(45 47 63 / 18%);
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--md-sys-color-primary) 28%, transparent);
+
+  --color-bg: var(--md-sys-color-surface);
+  --color-surface: var(--md-sys-color-surface-container-low);
+  --color-surface-muted: var(--md-sys-color-surface-container);
+  --color-border: var(--md-sys-color-outline-variant);
+  --color-border-strong: var(--md-sys-color-outline);
+  --color-text: var(--md-sys-color-on-surface);
+  --color-text-strong: var(--md-sys-color-on-surface);
+  --color-text-muted: var(--md-sys-color-on-surface-variant);
+  --color-accent: var(--md-sys-color-primary);
+  --color-accent-contrast: var(--md-sys-color-on-primary);
+  --color-secondary-bg: var(--md-sys-color-primary-container);
+  --color-secondary-text: var(--md-sys-color-on-primary-container);
+  --color-danger-bg: var(--md-sys-color-error-container);
+  --color-danger-text: var(--md-sys-color-error);
+  --color-success-bg: var(--app-color-success-container);
+  --color-success-border: var(--app-color-success);
+  --color-success-text: var(--app-color-success);
+  --color-error-bg: var(--md-sys-color-error-container);
+  --color-error-border: var(--md-sys-color-error);
+  --color-badge-bg: var(--md-sys-color-primary-container);
+  --color-badge-text: var(--md-sys-color-on-primary-container);
+  --color-code-bg: var(--app-color-code-surface);
+  --color-code-text: var(--app-color-code-text);
+  --color-disabled-bg: var(--md-sys-color-surface-container);
+  --color-disabled-border: var(--md-sys-color-outline-variant);
+  --color-disabled-text: color-mix(in srgb, var(--md-sys-color-on-surface) 50%, transparent);
+
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-bg: #111827;
-    --color-surface: #1f2937;
-    --color-surface-muted: #273244;
-    --color-border: #374151;
-    --color-border-strong: #4b5563;
-    --color-text: #e5e7eb;
-    --color-text-strong: #f9fafb;
-    --color-text-muted: #9ca3af;
-    --color-accent: #60a5fa;
-    --color-accent-contrast: #0f172a;
-    --color-secondary-bg: #273244;
-    --color-secondary-text: #e5e7eb;
-    --color-danger-bg: #3a1f24;
-    --color-danger-text: #fca5a5;
-    --color-success-bg: #152a22;
-    --color-success-border: #24543f;
-    --color-success-text: #86efac;
-    --color-error-bg: #3a1f24;
-    --color-error-border: #7f1d1d;
-    --color-badge-bg: #374151;
-    --color-badge-text: #d1d5db;
-    --color-code-bg: #0b1220;
-    --color-code-text: #e5e7eb;
-    --color-disabled-bg: #374151;
-    --color-disabled-border: #4b5563;
-    --color-disabled-text: #6b7280;
+    --md-sys-color-surface: #111318;
+    --md-sys-color-surface-dim: #111318;
+    --md-sys-color-surface-container-low: #1a1c21;
+    --md-sys-color-surface-container: #1e2025;
+    --md-sys-color-surface-container-high: #292a2f;
+    --md-sys-color-surface-container-highest: #34353a;
+    --md-sys-color-on-surface: #e3e2e9;
+    --md-sys-color-on-surface-variant: #c6c5d0;
+    --md-sys-color-outline: #90909a;
+    --md-sys-color-outline-variant: #45464f;
+    --md-sys-color-primary: #bec2ff;
+    --md-sys-color-on-primary: #202667;
+    --md-sys-color-primary-container: #373d8e;
+    --md-sys-color-on-primary-container: #e0e0ff;
+    --md-sys-color-error: #ffb4ab;
+    --md-sys-color-error-container: #93000a;
+    --md-sys-color-on-error-container: #ffdad6;
+    --app-color-success: #9bd5b2;
+    --app-color-success-container: #164f37;
+    --app-color-on-success-container: #b9f2ce;
+    --app-color-code-surface: #0c0e12;
+    --app-color-code-text: #e3e2e9;
+    --app-color-scrim: rgb(0 0 0 / 32%);
   }
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
+html {
+  min-width: 320px;
+  min-height: 100%;
+  background: var(--md-sys-color-surface);
+}
+
 body {
+  display: grid;
+  justify-items: center;
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: var(--color-bg);
-  color: var(--color-text);
+  background:
+    radial-gradient(
+      circle at 10% -10%,
+      color-mix(in srgb, var(--md-sys-color-primary-container) 62%, transparent),
+      transparent 34rem
+    ),
+    var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font: var(--type-body-medium);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-short: 0.01ms linear;
+    --motion-medium: 0.01ms linear;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

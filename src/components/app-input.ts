@@ -49,13 +49,42 @@ export class AppInput extends LitElement {
 
     input {
       width: 100%;
+      min-height: 48px;
       box-sizing: border-box;
-      border: 1px solid var(--color-border-strong);
-      border-radius: 10px;
-      padding: 10px 12px;
-      background: var(--color-surface);
-      color: var(--color-text-strong);
-      font: inherit;
+      border: 1px solid var(--md-sys-color-outline);
+      border-radius: var(--shape-small);
+      padding: var(--space-3) var(--space-4);
+      outline: none;
+      background: var(--md-sys-color-surface-container-low);
+      color: var(--md-sys-color-on-surface);
+      font: var(--type-body-medium);
+      caret-color: var(--md-sys-color-primary);
+      transition:
+        background-color var(--motion-short),
+        border-color var(--motion-short),
+        box-shadow var(--motion-short);
+    }
+
+    input:hover:not(:disabled) {
+      background: var(--md-sys-color-surface-container);
+      border-color: var(--md-sys-color-on-surface);
+    }
+
+    input:focus-visible {
+      border-color: var(--md-sys-color-primary);
+      box-shadow: var(--focus-ring);
+    }
+
+    input::placeholder {
+      color: var(--md-sys-color-on-surface-variant);
+      opacity: 0.72;
+    }
+
+    input:disabled {
+      cursor: not-allowed;
+      border-color: var(--md-sys-color-outline-variant);
+      background: var(--md-sys-color-surface-container);
+      color: var(--color-disabled-text);
     }
   `
 }
