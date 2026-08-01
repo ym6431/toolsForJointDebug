@@ -18,9 +18,13 @@ export class AppInput extends LitElement {
   @property({ type: Boolean })
   disabled = false
 
+  @property({ type: Boolean, reflect: true })
+  compact = false
+
   render() {
     return html`
       <input
+        class=${this.compact ? 'compact' : ''}
         .value=${this.value}
         .type=${this.type}
         .placeholder=${this.placeholder}
@@ -85,6 +89,12 @@ export class AppInput extends LitElement {
       border-color: var(--md-sys-color-outline-variant);
       background: var(--md-sys-color-surface-container);
       color: var(--color-disabled-text);
+    }
+
+    input.compact {
+      min-height: 40px;
+      padding: var(--space-2) var(--space-3);
+      font: var(--type-body-small);
     }
   `
 }

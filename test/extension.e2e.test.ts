@@ -160,22 +160,28 @@ test('options 页面应允许保存 cookie 配置和 localhost 端口', async ()
     await optionsPage.getByRole('heading', { name: '迁移 Key 配置' }).isVisible(),
   ).toBe(true)
 
-  const allSelects = optionsPage.locator('app-select select')
-  const draftStorageType = allSelects.first()
-  const draftInputs = optionsPage.locator('app-input input')
+  const workspace = optionsPage.locator('section.key-workspace')
+  const localhostStrip = optionsPage.locator('section.localhost-strip')
+  const composerStorageType = workspace.locator('app-select select')
+  const composerKeyInput = workspace.locator('.composer app-input input').nth(0)
+  const composerDescriptionInput = workspace.locator('.composer app-input input').nth(1)
+  const localhostProtocolSelect = localhostStrip.locator('app-select select')
+  const localhostPortInput = localhostStrip.locator('app-input input')
 
-  await draftStorageType.selectOption('cookie')
-  await draftInputs.nth(0).fill('locale')
-  await draftInputs.nth(1).fill('语言 Cookie')
+  await composerStorageType.selectOption('cookie')
+  await composerKeyInput.fill('locale')
+  await composerDescriptionInput.fill('语言 Cookie')
   await optionsPage.getByRole('button', { name: '加入列表', exact: true }).click()
 
-  await allSelects.nth(1).selectOption('https')
-  await draftInputs.nth(2).fill('5173')
+  await localhostProtocolSelect.selectOption('https')
+  await localhostPortInput.fill('5173')
   await optionsPage.getByRole('button', { name: '加入端口列表', exact: true }).click()
   await optionsPage.getByRole('button', { name: '保存全部配置', exact: true }).click()
 
   expect(await optionsPage.getByText('配置已保存。').isVisible()).toBe(true)
-  expect(await optionsPage.getByText('https://localhost:5173').isVisible()).toBe(true)
+  expect(
+    await optionsPage.getByText('https://localhost:5173', { exact: true }).first().isVisible(),
+  ).toBe(true)
 
   const storageState = await getExtensionIndexedDbState()
 

@@ -20,9 +20,13 @@ export class AppSelect extends LitElement {
   @property({ type: Boolean })
   disabled = false
 
+  @property({ type: Boolean, reflect: true })
+  compact = false
+
   render() {
     return html`
       <select
+        class=${this.compact ? 'compact' : ''}
         ?disabled=${this.disabled}
         @change=${(event: Event) =>
           this.dispatchValueChange((event.target as HTMLSelectElement).value)}
@@ -93,6 +97,12 @@ export class AppSelect extends LitElement {
       border-color: var(--md-sys-color-outline-variant);
       background: var(--md-sys-color-surface-container);
       color: var(--color-disabled-text);
+    }
+
+    select.compact {
+      min-height: 40px;
+      padding: var(--space-2) var(--space-3);
+      font: var(--type-body-small);
     }
   `
 }

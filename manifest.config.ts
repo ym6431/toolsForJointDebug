@@ -5,7 +5,7 @@ export default defineManifest({
   name: 'Frontend State Migrator',
   description:
     'Manually export non-sensitive frontend state from one page and import it into another for local debugging.',
-  version: '0.1.0',
+  version: '0.2.1',
   permissions: ['storage', 'tabs', 'cookies'],
   host_permissions: ['http://*/*', 'https://*/*'],
   action: {
