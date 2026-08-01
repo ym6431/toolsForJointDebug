@@ -71,10 +71,10 @@ export class AppChoiceCard extends LitElement {
       align-items: center;
       gap: var(--space-3);
       min-height: 56px;
-      border: 1px solid var(--md-sys-color-outline-variant);
+      border: 1px solid transparent;
       border-radius: var(--shape-medium);
       padding: var(--space-3) var(--space-4);
-      background: var(--md-sys-color-surface-container-low);
+      background: var(--md-sys-color-surface-container);
       transition:
         background-color var(--motion-short),
         border-color var(--motion-short),
@@ -83,14 +83,15 @@ export class AppChoiceCard extends LitElement {
     }
 
     .card:hover:not(:has(input:disabled)) {
-      background: var(--md-sys-color-surface-container);
-      border-color: var(--md-sys-color-outline);
+      background: var(--md-sys-color-surface-container-high);
+      border-color: var(--md-sys-color-outline-variant);
     }
 
     .card:has(input:checked) {
       border-color: var(--md-sys-color-primary);
       background: var(--md-sys-color-primary-container);
       color: var(--md-sys-color-on-primary-container);
+      box-shadow: var(--elevation-1);
     }
 
     .card:focus-within {

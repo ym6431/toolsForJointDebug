@@ -82,6 +82,12 @@ test('popup 应正确渲染基础界面', async () => {
     await popupPage.getByRole('button', { name: '配置', exact: true }).isVisible(),
   ).toBe(true)
 
+  await popupPage.setViewportSize({ width: 375, height: 900 })
+  const horizontalOverflow = await popupPage.evaluate(
+    () => document.documentElement.scrollWidth - window.innerWidth,
+  )
+  expect(horizontalOverflow).toBeLessThanOrEqual(0)
+
   await popupPage.close()
 })
 
@@ -119,14 +125,24 @@ test('popup 导入预览应展示 cookie 元信息', async () => {
   await popupPage.waitForLoadState('domcontentloaded')
   await popupPage.getByRole('button', { name: '导入模式' }).click()
 
-  const cookieMeta = popupPage.locator('.cookie-meta').first()
+  const importDetails = popupPage.locator('popup-import-panel app-disclosure details').first()
+  const importSummary = popupPage.locator('popup-import-panel app-disclosure summary').first()
+  const cookieMeta = popupPage.locator('popup-import-panel app-disclosure .cookie-meta').first()
 
   expect(
     await popupPage.getByText('Cookie dataset', { exact: true }).first().isVisible(),
   ).toBe(true)
-  expect(await popupPage.getByText('locale', { exact: true }).first().isVisible()).toBe(
-    true,
-  )
+  expect(await importDetails.getAttribute('open')).toBeNull()
+  expect(await importSummary.textContent()).toContain('数据集内容')
+  expect(await importSummary.textContent()).toContain('1 项')
+  expect(await popupPage.getByText('locale', { exact: true }).first().isVisible()).toBe(false)
+  expect(await cookieMeta.isVisible()).toBe(false)
+
+  await importSummary.focus()
+  await popupPage.keyboard.press('Enter')
+
+  expect(await importDetails.getAttribute('open')).toBe('')
+  expect(await popupPage.getByText('locale', { exact: true }).first().isVisible()).toBe(true)
   expect(await cookieMeta.isVisible()).toBe(true)
   expect(await cookieMeta.textContent()).toContain('HttpOnly')
   expect(await cookieMeta.textContent()).toContain('Secure')
@@ -286,7 +302,11 @@ test('popup 首次启动应迁移旧 chrome.storage.local 数据', async () => {
     popupPage = await openPopupPageForTab(targetUrl)
     await popupPage.waitForLoadState('domcontentloaded')
 
-    expect(await popupPage.getByText('Legacy dataset', { exact: true }).isVisible()).toBe(true)
+    await popupPage.getByText('Legacy dataset', { exact: true }).waitFor()
+    const importSummary = popupPage.locator('popup-import-panel app-disclosure summary').first()
+    expect(await importSummary.textContent()).toContain('1 项')
+    expect(await popupPage.getByText('legacy-key', { exact: true }).isVisible()).toBe(false)
+    await importSummary.click()
     expect(await popupPage.getByText('legacy-key', { exact: true }).isVisible()).toBe(true)
     const state = await getExtensionIndexedDbState()
     expect(state[STORAGE_KEYS.localhostPorts]).toEqual([{ protocol: 'http', port: '5173' }])
@@ -391,9 +411,19 @@ test('popup 应可从源页面导出 cookie 并导入到 localhost 页面', asyn
 
     await exportPopup.getByText('已扫描到 1 个可导出项。').waitFor()
     expect(await exportPopup.getByText('已扫描到 1 个可导出项。').isVisible()).toBe(true)
-    expect(await exportPopup.getByText(cookieName, { exact: true }).isVisible()).toBe(true)
+    const exportDetails = exportPopup.locator('popup-export-panel app-disclosure details').first()
+    const exportSummary = exportPopup.locator('popup-export-panel app-disclosure summary').first()
+    expect(await exportDetails.getAttribute('open')).toBeNull()
+    expect(await exportSummary.textContent()).toContain('数据集内容')
+    expect(await exportSummary.textContent()).toContain('1 项')
+    expect(await exportPopup.getByText(cookieName, { exact: true }).isVisible()).toBe(false)
 
-    const exportedCookieMeta = exportPopup.locator('.cookie-meta').first()
+    const exportedCookieMeta = exportPopup.locator('popup-export-panel app-disclosure .cookie-meta').first()
+    expect(await exportedCookieMeta.isVisible()).toBe(false)
+    await exportSummary.click()
+    expect(await exportDetails.getAttribute('open')).toBe('')
+    expect(await exportPopup.getByText(cookieName, { exact: true }).isVisible()).toBe(true)
+    expect(await exportedCookieMeta.isVisible()).toBe(true)
     expect(await exportedCookieMeta.textContent()).toContain('HttpOnly')
     expect(await exportedCookieMeta.textContent()).toContain('HostOnly')
     expect(await exportedCookieMeta.textContent()).toContain('SameSite=Strict')
@@ -412,6 +442,15 @@ test('popup 应可从源页面导出 cookie 并导入到 localhost 页面', asyn
     await importPopup.waitForLoadState('domcontentloaded')
     expect(await importPopup.getByText(targetUrl, { exact: true }).isVisible()).toBe(true)
     expect(await importPopup.getByRole('button', { name: '导入模式' }).isVisible()).toBe(true)
+    const importDetails = importPopup.locator('popup-import-panel app-disclosure details').first()
+    const importSummary = importPopup.locator('popup-import-panel app-disclosure summary').first()
+    expect(await importDetails.getAttribute('open')).toBeNull()
+    expect(await importSummary.textContent()).toContain('数据集内容')
+    expect(await importSummary.textContent()).toContain('1 项')
+    expect(await importPopup.getByText(cookieName, { exact: true }).isVisible()).toBe(false)
+    await importSummary.focus()
+    await importPopup.keyboard.press(' ')
+    expect(await importDetails.getAttribute('open')).toBe('')
     expect(await importPopup.getByText(cookieName, { exact: true }).isVisible()).toBe(true)
 
     await importPopup.getByRole('button', { name: '确认导入选中项' }).click()

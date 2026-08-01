@@ -108,8 +108,48 @@ Prefer extending these primitives instead of introducing one-off form controls.
 - Typecheck: `pnpm check`
 - Unit tests: `pnpm test`
 - E2E tests: `pnpm test:e2e`
+- Visual E2E matrix: `pnpm test:e2e:visual`
 - Dev server: `pnpm dev`
 - Build extension: `pnpm build`
+
+## GitHub Spec Kit
+
+This repository is initialized with GitHub Spec Kit and uses the `opencode` integration with sequential feature numbering.
+
+### Spec Kit Structure
+
+- `.specify/feature.json` points to the active feature directory used by downstream Spec Kit commands.
+- `.specify/memory/constitution.md` contains project-wide principles and governance constraints.
+- `.specify/templates/` contains the active specification, plan, task, checklist, and constitution templates.
+- `.specify/scripts/bash/` contains the generated workflow scripts.
+- `.specify/workflows/` contains the installed `speckit` workflow.
+- `specs/NNN-feature-name/` contains each feature's `spec.md`, planning artifacts, tasks, and quality checklists.
+- The current baseline product specification is `specs/001-frontend-state-migration/spec.md`.
+- `.opencode/commands/` contains generated local slash-command definitions and is intentionally ignored by Git; do not edit those generated files by hand.
+
+### Recommended Workflow
+
+1. Run `/speckit.constitution` when establishing or changing repository-wide engineering principles.
+2. Run `/speckit.specify` with one concrete feature description to create or update its user-facing requirements.
+3. Run `/speckit.clarify` when material product decisions remain ambiguous.
+4. Run `/speckit.plan` to produce the implementation design from the approved specification.
+5. Run `/speckit.checklist` when the feature needs an additional domain-specific quality gate.
+6. Run `/speckit.tasks` to generate dependency-ordered implementation tasks.
+7. Run `/speckit.analyze` before implementation to detect inconsistencies across the specification, plan, and tasks.
+8. Run `/speckit.implement` to execute the approved tasks.
+9. Run `/speckit.converge` after implementation to append any remaining spec gaps as actionable tasks.
+10. Run `/speckit.taskstoissues` only when the user explicitly wants the tasks published as GitHub issues.
+
+### Spec Kit Guidance For Agents
+
+- Treat the active `spec.md` as the source of truth for feature scope and user-visible behavior.
+- Read `.specify/feature.json` before running plan, task, analysis, or implementation commands.
+- Keep specifications focused on what users need and why; defer implementation details to `plan.md`.
+- Create exactly one feature directory per `/speckit.specify` invocation and preserve sequential `NNN-feature-name` naming.
+- Record assumptions explicitly and leave `[NEEDS CLARIFICATION]` markers only for decisions that materially affect scope, security, or user experience.
+- Do not add roadmap ideas, new permissions, silent synchronization, or credential-transfer behavior unless the user explicitly requests and approves them.
+- When behavior changes, update or create the relevant specification before planning the code change.
+- Validate every specification with its `checklists/requirements.md` before proceeding to `/speckit.plan`.
 
 ## Testing Notes
 

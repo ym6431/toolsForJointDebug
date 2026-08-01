@@ -3,9 +3,8 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   test: {
     environment: 'web-ext',
-    include: ['test/**/*.e2e.test.ts'],
-    exclude: ['test/visual-qa.e2e.test.ts'],
-    testTimeout: 30_000,
+    include: ['test/visual-qa.e2e.test.ts'],
+    testTimeout: 120_000,
     hookTimeout: 30_000,
     environmentOptions: {
       'web-ext': {

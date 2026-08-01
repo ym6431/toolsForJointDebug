@@ -1,3 +1,27 @@
+@font-face {
+  font-family: 'State Migrator CJK';
+  src: url('/fonts/state-migrator-cjk-400.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'State Migrator CJK';
+  src: url('/fonts/state-migrator-cjk-500.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'State Migrator CJK';
+  src: url('/fonts/state-migrator-cjk-600.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+}
+
 :root {
   color-scheme: light dark;
   font-family: var(--font-sans);
@@ -6,32 +30,35 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  --md-sys-color-surface: #f9f9ff;
-  --md-sys-color-surface-dim: #dad9e0;
-  --md-sys-color-surface-container-low: #f3f3fa;
-  --md-sys-color-surface-container: #edecf3;
-  --md-sys-color-surface-container-high: #e7e6ed;
-  --md-sys-color-surface-container-highest: #e1e1e8;
-  --md-sys-color-on-surface: #1a1b20;
-  --md-sys-color-on-surface-variant: #45464f;
-  --md-sys-color-outline: #767680;
-  --md-sys-color-outline-variant: #c6c5d0;
-  --md-sys-color-primary: #4f55a7;
+  --md-sys-color-surface: #f8faf7;
+  --md-sys-color-surface-dim: #d9ded7;
+  --md-sys-color-surface-container-low: #f1f5ef;
+  --md-sys-color-surface-container: #eaf0e7;
+  --md-sys-color-surface-container-high: #e3eadf;
+  --md-sys-color-surface-container-highest: #dce5d8;
+  --md-sys-color-on-surface: #171d17;
+  --md-sys-color-on-surface-variant: #444d43;
+  --md-sys-color-outline: #737d70;
+  --md-sys-color-outline-variant: #c3cbbf;
+  --md-sys-color-primary: #0b8043;
   --md-sys-color-on-primary: #ffffff;
-  --md-sys-color-primary-container: #e0e0ff;
-  --md-sys-color-on-primary-container: #171e60;
+  --md-sys-color-primary-container: #c8f4d3;
+  --md-sys-color-on-primary-container: #00210e;
+  --app-color-info: #1a73e8;
+  --app-color-info-container: #d8e9ff;
+  --app-color-on-info-container: #001b3f;
   --md-sys-color-error: #ba1a1a;
   --md-sys-color-error-container: #ffdad6;
   --md-sys-color-on-error-container: #410002;
-  --app-color-success: #316b4d;
-  --app-color-success-container: #b9f2ce;
-  --app-color-on-success-container: #002111;
+  --app-color-success: #137333;
+  --app-color-success-container: #c8f4d3;
+  --app-color-on-success-container: #00210e;
   --app-color-code-surface: #202127;
   --app-color-code-text: #f2f0f7;
   --app-color-scrim: rgb(17 19 24 / 12%);
 
   --font-sans:
-    Roboto, 'Noto Sans SC', 'Noto Sans CJK SC', 'WenQuanYi Micro Hei',
+    'State Migrator CJK', Roboto, 'Noto Sans SC', 'Noto Sans CJK SC', 'WenQuanYi Micro Hei',
     'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
     sans-serif;
   --font-mono: 'Roboto Mono', 'SFMono-Regular', Consolas, monospace;
@@ -64,9 +91,9 @@
   --motion-short: 150ms cubic-bezier(0.2, 0, 0, 1);
   --motion-medium: 250ms cubic-bezier(0.2, 0, 0, 1);
   --elevation-1:
-    0 1px 2px rgb(45 47 63 / 18%), 0 1px 3px 1px rgb(45 47 63 / 10%);
+    0 1px 2px rgb(36 64 43 / 16%), 0 1px 3px 1px rgb(36 64 43 / 10%);
   --elevation-2:
-    0 2px 6px 2px rgb(45 47 63 / 12%), 0 1px 2px rgb(45 47 63 / 18%);
+    0 2px 6px 2px rgb(36 64 43 / 12%), 0 1px 2px rgb(36 64 43 / 16%);
   --focus-ring: 0 0 0 3px color-mix(in srgb, var(--md-sys-color-primary) 28%, transparent);
 
   --color-bg: var(--md-sys-color-surface);
@@ -102,26 +129,29 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --md-sys-color-surface: #111318;
-    --md-sys-color-surface-dim: #111318;
-    --md-sys-color-surface-container-low: #1a1c21;
-    --md-sys-color-surface-container: #1e2025;
-    --md-sys-color-surface-container-high: #292a2f;
-    --md-sys-color-surface-container-highest: #34353a;
-    --md-sys-color-on-surface: #e3e2e9;
-    --md-sys-color-on-surface-variant: #c6c5d0;
-    --md-sys-color-outline: #90909a;
-    --md-sys-color-outline-variant: #45464f;
-    --md-sys-color-primary: #bec2ff;
-    --md-sys-color-on-primary: #202667;
-    --md-sys-color-primary-container: #373d8e;
-    --md-sys-color-on-primary-container: #e0e0ff;
+    --md-sys-color-surface: #101410;
+    --md-sys-color-surface-dim: #101410;
+    --md-sys-color-surface-container-low: #181d18;
+    --md-sys-color-surface-container: #1d231d;
+    --md-sys-color-surface-container-high: #273027;
+    --md-sys-color-surface-container-highest: #323c32;
+    --md-sys-color-on-surface: #e1e9de;
+    --md-sys-color-on-surface-variant: #c3cbbf;
+    --md-sys-color-outline: #8d978a;
+    --md-sys-color-outline-variant: #444d43;
+    --md-sys-color-primary: #86d9a5;
+    --md-sys-color-on-primary: #00391c;
+    --md-sys-color-primary-container: #00522b;
+    --md-sys-color-on-primary-container: #c8f4d3;
+    --app-color-info: #9fc9ff;
+    --app-color-info-container: #0b376d;
+    --app-color-on-info-container: #d8e9ff;
     --md-sys-color-error: #ffb4ab;
     --md-sys-color-error-container: #93000a;
     --md-sys-color-on-error-container: #ffdad6;
-    --app-color-success: #9bd5b2;
-    --app-color-success-container: #164f37;
-    --app-color-on-success-container: #b9f2ce;
+    --app-color-success: #8fd6a3;
+    --app-color-success-container: #0f4f2a;
+    --app-color-on-success-container: #c8f4d3;
     --app-color-code-surface: #0c0e12;
     --app-color-code-text: #e3e2e9;
     --app-color-scrim: rgb(0 0 0 / 32%);
@@ -149,8 +179,13 @@ body {
   background:
     radial-gradient(
       circle at 10% -10%,
-      color-mix(in srgb, var(--md-sys-color-primary-container) 62%, transparent),
+      color-mix(in srgb, var(--md-sys-color-primary-container) 54%, transparent),
       transparent 34rem
+    ),
+    radial-gradient(
+      circle at 96% 8%,
+      color-mix(in srgb, var(--app-color-info-container) 46%, transparent),
+      transparent 26rem
     ),
     var(--md-sys-color-surface);
   color: var(--md-sys-color-on-surface);

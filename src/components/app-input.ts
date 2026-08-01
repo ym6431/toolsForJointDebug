@@ -51,11 +51,11 @@ export class AppInput extends LitElement {
       width: 100%;
       min-height: 48px;
       box-sizing: border-box;
-      border: 1px solid var(--md-sys-color-outline);
+      border: 1px solid var(--md-sys-color-outline-variant);
       border-radius: var(--shape-small);
       padding: var(--space-3) var(--space-4);
       outline: none;
-      background: var(--md-sys-color-surface-container-low);
+      background: var(--md-sys-color-surface-container);
       color: var(--md-sys-color-on-surface);
       font: var(--type-body-medium);
       caret-color: var(--md-sys-color-primary);
@@ -66,8 +66,8 @@ export class AppInput extends LitElement {
     }
 
     input:hover:not(:disabled) {
-      background: var(--md-sys-color-surface-container);
-      border-color: var(--md-sys-color-on-surface);
+      background: var(--md-sys-color-surface-container-high);
+      border-color: var(--md-sys-color-outline);
     }
 
     input:focus-visible {
