@@ -49,6 +49,8 @@ export interface AppendValidation {
   message?: string
 }
 
+export type PendingMigrationRowValidationMessages = Readonly<Record<string, string>>
+
 const SUPPORTED_STORAGE_TYPES: ReadonlySet<StorageType> = new Set([
   'localStorage',
   'sessionStorage',
@@ -116,6 +118,49 @@ export function validateComposerDraft(
   }
 
   return { accepted: true }
+}
+
+export function validatePendingMigrationKeyRows(
+  rows: PendingMigrationKeyRow[],
+): PendingMigrationRowValidationMessages {
+  const normalizedRows = rows.map(({ uiId, item }) => ({
+    uiId,
+    storageType: item.storageType,
+    trimmedKey: item.key.trim(),
+    supportedStorageType: isSupportedStorageType(item.storageType),
+  }))
+
+  const duplicateCounts = new Map<string, number>()
+
+  for (const row of normalizedRows) {
+    if (!row.supportedStorageType || !row.trimmedKey) {
+      continue
+    }
+
+    const duplicateKey = `${row.storageType}\u0000${row.trimmedKey}`
+    duplicateCounts.set(duplicateKey, (duplicateCounts.get(duplicateKey) ?? 0) + 1)
+  }
+
+  const messages: Record<string, string> = {}
+
+  for (const row of normalizedRows) {
+    if (!row.trimmedKey) {
+      messages[row.uiId] = 'Key 不能为空。'
+      continue
+    }
+
+    if (!row.supportedStorageType) {
+      messages[row.uiId] = `不支持的 Storage 类型：${String(row.storageType)}。`
+      continue
+    }
+
+    const duplicateKey = `${row.storageType}\u0000${row.trimmedKey}`
+    if ((duplicateCounts.get(duplicateKey) ?? 0) > 1) {
+      messages[row.uiId] = `${row.storageType}:${row.trimmedKey} 已存在，请使用其它 Key。`
+    }
+  }
+
+  return messages
 }
 
 export function composeMigrationKeyItem(draft: ComposerDraft): ConfigItem {

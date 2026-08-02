@@ -8,6 +8,8 @@ import {
   filterMigrationKeyRows,
   reconcilePendingAfterRemovingDefault,
   validateComposerDraft,
+  validatePendingMigrationKeyRows,
+  type PendingMigrationKeyRow,
 } from './options-state'
 import type { LocalhostTarget } from '../shared/types'
 
@@ -47,7 +49,11 @@ describe('options-state helpers', () => {
         { storageType: 'localStorage', key: '   ', description: '' },
         rows,
       ),
-    ).toMatchObject({ accepted: false, reason: 'empty-key' })
+    ).toMatchObject({
+      accepted: false,
+      reason: 'empty-key',
+      message: 'Key 不能为空。',
+    })
 
     expect(
       validateComposerDraft(
@@ -57,6 +63,7 @@ describe('options-state helpers', () => {
     ).toMatchObject({
       accepted: false,
       reason: 'unsupported-storage-type',
+      message: '不支持的 Storage 类型：indexedDB。',
     })
 
     expect(
@@ -67,7 +74,58 @@ describe('options-state helpers', () => {
     ).toMatchObject({
       accepted: false,
       reason: 'duplicate-state-type-and-key',
+      message: 'localStorage:userLocale 已存在，请使用其它 Key。',
     })
+  })
+
+  it('validatePendingMigrationKeyRows returns row-id keyed messages for invalid rows', () => {
+    const rows = [
+      {
+        uiId: 'row-empty',
+        item: { storageType: 'localStorage', key: '   ', description: '空键' },
+      },
+      {
+        uiId: 'row-unsupported',
+        item: { storageType: 'indexedDB' as never, key: 'theme', description: '不支持' },
+      },
+      {
+        uiId: 'row-dup-a',
+        item: { storageType: 'sessionStorage', key: ' theme ', description: 'dup-a' },
+      },
+      {
+        uiId: 'row-dup-b',
+        item: { storageType: 'sessionStorage', key: 'theme', description: 'dup-b' },
+      },
+      {
+        uiId: 'row-valid',
+        item: { storageType: 'cookie', key: 'token', description: 'ok' },
+      },
+    ] satisfies PendingMigrationKeyRow[]
+
+    const snapshot = structuredClone(rows)
+
+    expect(validatePendingMigrationKeyRows(rows)).toEqual({
+      'row-empty': 'Key 不能为空。',
+      'row-unsupported': '不支持的 Storage 类型：indexedDB。',
+      'row-dup-a': 'sessionStorage:theme 已存在，请使用其它 Key。',
+      'row-dup-b': 'sessionStorage:theme 已存在，请使用其它 Key。',
+    })
+    expect(rows).toEqual(snapshot)
+  })
+
+  it('validatePendingMigrationKeyRows returns no messages for valid rows', () => {
+    const rows = [
+      {
+        uiId: 'row-1',
+        item: { storageType: 'localStorage', key: 'theme', description: '主题' },
+      },
+      {
+        uiId: 'row-2',
+        item: { storageType: 'sessionStorage', key: 'draft', description: '草稿' },
+      },
+    ] satisfies PendingMigrationKeyRow[]
+
+    expect(validatePendingMigrationKeyRows(rows)).toEqual({})
   })
 
   it('validateComposerDraft accepts a new unique item', () => {
