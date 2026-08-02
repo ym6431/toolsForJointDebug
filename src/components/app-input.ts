@@ -1,3 +1,4 @@
+import { nothing } from 'lit'
 import { LitElement, css, html } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 
@@ -15,6 +16,18 @@ export class AppInput extends LitElement {
   @property()
   inputmode = ''
 
+  @property()
+  ariaLabel = ''
+
+  @property()
+  description = ''
+
+  @property({ type: Boolean, reflect: true })
+  invalid = false
+
+  @property({ attribute: false })
+  testId = ''
+
   @property({ type: Boolean })
   disabled = false
 
@@ -24,16 +37,27 @@ export class AppInput extends LitElement {
   render() {
     return html`
       <input
+        data-test-id=${this.testId}
         class=${this.compact ? 'compact' : ''}
         .value=${this.value}
         .type=${this.type}
         .placeholder=${this.placeholder}
         .inputMode=${this.inputmode}
+        aria-label=${this.ariaLabel || nothing}
+        aria-describedby=${this.description ? 'app-input-description' : nothing}
+        aria-invalid=${this.invalid ? 'true' : nothing}
         ?disabled=${this.disabled}
         @input=${(event: Event) =>
           this.dispatchValueChange((event.target as HTMLInputElement).value)}
       />
+      ${this.description
+        ? html`<span id="app-input-description" class="visually-hidden">${this.description}</span>`
+        : nothing}
     `
+  }
+
+  focusInput() {
+    this.renderRoot.querySelector<HTMLInputElement>('input')?.focus()
   }
 
   private dispatchValueChange(value: string) {
@@ -95,6 +119,18 @@ export class AppInput extends LitElement {
       min-height: 40px;
       padding: var(--space-2) var(--space-3);
       font: var(--type-body-small);
+    }
+
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }
   `
 }

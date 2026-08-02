@@ -1,3 +1,4 @@
+import { nothing } from 'lit'
 import { LitElement, css, html } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 
@@ -17,6 +18,18 @@ export class AppSelect extends LitElement {
   @property()
   placeholder = '请选择'
 
+  @property()
+  ariaLabel = ''
+
+  @property()
+  description = ''
+
+  @property({ type: Boolean, reflect: true })
+  invalid = false
+
+  @property({ attribute: false })
+  testId = ''
+
   @property({ type: Boolean })
   disabled = false
 
@@ -26,7 +39,11 @@ export class AppSelect extends LitElement {
   render() {
     return html`
       <select
+        data-test-id=${this.testId}
         class=${this.compact ? 'compact' : ''}
+        aria-label=${this.ariaLabel || nothing}
+        aria-describedby=${this.description ? 'app-select-description' : nothing}
+        aria-invalid=${this.invalid ? 'true' : nothing}
         ?disabled=${this.disabled}
         @change=${(event: Event) =>
           this.dispatchValueChange((event.target as HTMLSelectElement).value)}
@@ -46,6 +63,9 @@ export class AppSelect extends LitElement {
           `,
         )}
       </select>
+      ${this.description
+        ? html`<span id="app-select-description" class="visually-hidden">${this.description}</span>`
+        : nothing}
     `
   }
 
@@ -103,6 +123,18 @@ export class AppSelect extends LitElement {
       min-height: 40px;
       padding: var(--space-2) var(--space-3);
       font: var(--type-body-small);
+    }
+
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }
   `
 }
