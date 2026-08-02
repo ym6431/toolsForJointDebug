@@ -476,7 +476,30 @@ type ExportedOptionsConfig = {
     description: string
   }>
 }
-```
+  ```
+
+### Event detail conventions
+
+Every child-to-`OptionsApp` event carries an object `detail`; raw string details and detail-less command events are not part of this contract. `rowId` is the existing transient row `uiId` value, renamed only at the component boundary to describe its role.
+
+- Filter events carry `{ value }`.
+- Row changes carry `{ rowId, field, value }`; row delete requests carry `{ rowId, storageType, key }`; row delete confirm and cancel events carry `{ rowId }`.
+- Composer changes carry `{ field, value }`; append carries `{ storageType, key, description }`.
+- Localhost draft changes carry `{ field, value }`; append carries `{ protocol, port }`; default changes carry `{ targetKey }`; delete requests carry `{ targetKey, label, isDefault }`; delete confirm and cancel events carry `{ targetKey }`.
+- Toolbar commands use `{ command }` for `export-config`, `save-all`, `clear-all`, `clear-cancel`, and `clear-confirm`. File import continues to use `{ mode, file }`.
+
+`OptionsApp` consumes these object payloads, remains the sole owner of validation, normalization, persistence, and focus-restoration decisions, and never relies on a visible filtered-row index.
+
+## Stable test selectors
+
+E2E and visual tests locate options controls through `data-test-id`; accessible names remain assertions of the accessibility contract, not primary locators. Repeated rows pair their selector with `data-row-id`; localhost targets pair theirs with serialized `data-target-key`.
+
+| Region | Stable selectors |
+| --- | --- |
+| Toolbar | `options-toolbar`, `options-import-file-input`, `options-export-config-button`, `options-import-merge-button`, `options-import-replace-button`, `options-save-all-button`, `options-clear-all-button`, `options-pending-indicator`, `options-operation-message`, `options-load-status`, `options-load-error`, `options-clear-all-confirmation`, `options-clear-all-cancel-button`, `options-clear-all-confirm-button` |
+| Migration keys | `options-key-workspace`, `options-filter-input`, `options-config-row-list`, `options-config-row`, `options-config-row-storage-type`, `options-config-row-key-input`, `options-config-row-description-input`, `options-config-row-validation-message`, `options-config-row-delete-button`, `options-config-row-delete-confirmation`, `options-config-row-delete-cancel-button`, `options-config-row-delete-confirm-button` |
+| Composer | `options-config-composer`, `options-composer-storage-select`, `options-composer-key-input`, `options-composer-description-input`, `options-add-config-button`, `options-composer-message` |
+| Localhost targets | `options-localhost-strip`, `options-localhost-protocol-select`, `options-localhost-port-input`, `options-add-localhost-button`, `options-localhost-target`, `options-localhost-target-label`, `options-localhost-default-button`, `options-localhost-default-indicator`, `options-localhost-delete-button`, `options-localhost-delete-confirmation`, `options-localhost-delete-cancel-button`, `options-localhost-delete-confirm-button` |
 
 ## Non goals
 
