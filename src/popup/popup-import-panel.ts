@@ -49,18 +49,18 @@ export class PopupImportPanel extends LitElement {
               </button>
             </div>
             <p class="page-title">${this.pageInfo?.title ?? '未识别页面'}</p>
-            <p class="page-url">${this.pageInfo?.url ?? '无法读取当前标签页 URL'}</p>
+            <p data-test-id="import-page-url" class="page-url">${this.pageInfo?.url ?? '无法读取当前标签页 URL'}</p>
           </section>
 
           <section class="panel">
             <div class="section-head">
               <h2>已保存数据集</h2>
-              <span>${this.datasets.length} 组</span>
+              <span data-test-id="import-dataset-count">${this.datasets.length} 组</span>
             </div>
             ${this.datasets.length === 0
               ? html`<p class="empty">还没有已保存的数据集。</p>`
               : html`
-                  <div class="dataset-list">
+                  <div data-test-id="saved-dataset-list" class="dataset-list">
                     ${this.datasets.map(
                       (item) => html`
                         <app-choice-card
@@ -77,7 +77,7 @@ export class PopupImportPanel extends LitElement {
                           }}
                         >
                           <div class="dataset-meta">
-                            <strong>${item.datasetName}</strong>
+                            <strong data-test-id="saved-dataset-name">${item.datasetName}</strong>
                             <span>${formatTimestamp(item.createdAt)}</span>
                             <span>${formatDisplayHost(item.sourceUrl)}</span>
                           </div>
@@ -113,12 +113,13 @@ export class PopupImportPanel extends LitElement {
                 <p class="summary-note">
                   已选择 ${this.selectedImportCount} / ${this.selectedDataset.items.length} 项。详情可展开检查和调整。
                 </p>
-                <app-disclosure label="数据集内容" count=${`${this.selectedDataset.items.length} 项`}>
+                <app-disclosure .testId=${'import-preview-disclosure-details'} label="数据集内容" count=${`${this.selectedDataset.items.length} 项`}>
                   <div class="item-list">
                     ${this.selectedDataset.items.map((item) => this.renderItemRow(item))}
                   </div>
                 </app-disclosure>
                 <button
+                  data-test-id="import-confirm-button"
                   class="primary wide"
                   @click=${() => this.emit('import-request')}
                   ?disabled=${this.importing}
@@ -151,11 +152,11 @@ export class PopupImportPanel extends LitElement {
         <div class="item-meta">
           <div class="item-head">
             <span class="badge">${item.storageType}</span>
-            <strong>${item.key}</strong>
+            <strong data-test-id="import-preview-item-key">${item.key}</strong>
           </div>
           <code>${previewValue(item.value)}</code>
           ${cookieMetadata
-            ? html`<p class="cookie-meta">${cookieMetadata}</p>`
+            ? html`<p data-test-id="import-preview-cookie-meta" class="cookie-meta">${cookieMetadata}</p>`
             : null}
         </div>
       </app-choice-card>

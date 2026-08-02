@@ -9,10 +9,13 @@ export class AppDisclosure extends LitElement {
   @property()
   count = ''
 
+  @property({ attribute: false })
+  testId = ''
+
   render() {
     return html`
-      <details>
-        <summary>
+      <details data-test-id=${this.testId}>
+        <summary data-test-id=${`${this.testId}-summary`}>
           <span class="chevron"></span>
           <span class="summary-text">${this.label}</span>
           ${this.count ? html`<span class="count">${this.count}</span>` : null}

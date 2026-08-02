@@ -42,13 +42,14 @@ export class PopupExportPanel extends LitElement {
   render() {
     return html`
       <div class="workspace">
-        <section class="panel">
+        <section data-test-id="export-items-panel" class="panel">
           <div class="section-head">
             <h2>可导出项</h2>
             <span>${this.exportItems.length} 项</span>
           </div>
           <div class="actions top-actions">
             <button
+              data-test-id="export-save-and-inject-button"
               class="secondary wide"
               @click=${() => this.emit('save-and-inject-request')}
               ?disabled=${!this.selectedLocalhostTargetKey}
@@ -61,6 +62,7 @@ export class PopupExportPanel extends LitElement {
           <label class="stack">
             <span>数据集名称</span>
             <app-input
+              .testId=${'export-dataset-name-input'}
               .value=${this.datasetName}
               @value-change=${(event: Event) =>
                 this.emit(
@@ -73,6 +75,7 @@ export class PopupExportPanel extends LitElement {
           <label class="stack">
             <span>注入目标</span>
             <app-select
+              .testId=${'export-localhost-target-select'}
               .options=${this.localhostTargetOptions}
               .value=${this.selectedLocalhostTargetKey}
               placeholder="请先在 options 中配置注入目标"
@@ -90,28 +93,28 @@ export class PopupExportPanel extends LitElement {
                 <p class="summary-note">
                   已选择 ${this.selectedExportCount} / ${this.exportItems.length} 项。详情可展开检查和调整。
                 </p>
-                <app-disclosure label="数据集内容" count=${`${this.exportItems.length} 项`}>
+                <app-disclosure .testId=${'export-items-disclosure-details'} label="数据集内容" count=${`${this.exportItems.length} 项`}>
                   <div class="item-list">
                     ${this.exportItems.map((item) => this.renderItemRow(item))}
                   </div>
                 </app-disclosure>
               `}
           <div class="actions">
-            <button class="primary wide" @click=${() => this.emit('export-request')}>
+            <button data-test-id="export-save-dataset-button" class="primary wide" @click=${() => this.emit('export-request')}>
               保存选中项为数据集
             </button>
           </div>
         </section>
 
-        <section class="panel">
+        <section data-test-id="export-page-panel" class="panel">
           <div class="section-head">
             <h2>当前页面</h2>
-            <button @click=${() => this.emit('scan-request')} ?disabled=${this.scanning}>
+            <button data-test-id="export-rescan-button" @click=${() => this.emit('scan-request')} ?disabled=${this.scanning}>
               ${this.scanning ? '扫描中...' : '重新扫描可导出项'}
             </button>
           </div>
           <p class="page-title">${this.pageInfo?.title ?? '未识别页面'}</p>
-          <p class="page-url">${this.pageInfo?.url ?? '无法读取当前标签页 URL'}</p>
+          <p data-test-id="export-page-url" class="page-url">${this.pageInfo?.url ?? '无法读取当前标签页 URL'}</p>
         </section>
       </div>
     `
@@ -136,11 +139,11 @@ export class PopupExportPanel extends LitElement {
         <div class="item-meta">
           <div class="item-head">
             <span class="badge">${item.storageType}</span>
-            <strong>${item.key}</strong>
+            <strong data-test-id="export-item-key">${item.key}</strong>
           </div>
           <code>${previewValue(item.value)}</code>
           ${cookieMetadata
-            ? html`<p class="cookie-meta">${cookieMetadata}</p>`
+            ? html`<p data-test-id="export-item-cookie-meta" class="cookie-meta">${cookieMetadata}</p>`
             : null}
         </div>
       </app-choice-card>
