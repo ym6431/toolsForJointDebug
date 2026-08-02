@@ -269,3 +269,24 @@ With multiple developers:
 - Manual PC validation follows `quickstart.md` and runs during Phase 8
 - Stop at any checkpoint to validate a story independently
 - Avoid: vague tasks, same-file conflicts, cross-story dependencies that break independence
+
+## Phase 9: Convergence
+
+- [X] T045 [US1] Tighten the PC-first migration-key workspace layout and add a 1440px fixture with twelve or more rows so the list, row actions, composer, and primary toolbar satisfy FR-001 and SC-001 (partial)
+- [X] T046 [US1] Add dense-workspace E2E coverage for twelve rows, key/description filtering, inline edits, and pending-state preservation in `test/extension.e2e.test.ts` per US1/AC1-AC3 (missing)
+- [X] T047 [US2] Add E2E coverage for the compact localhost strip, default-target switching, default-target removal, save, and popup synchronization in `test/extension.e2e.test.ts` per US2/AC1-AC3 (missing)
+- [X] T048 [US3] Add E2E coverage for empty/invalid/duplicate composer validation, row delete confirmation, and the pending `beforeunload` reminder in `test/extension.e2e.test.ts` per US3/AC2-AC3 (missing)
+- [X] T049 [US4] Add E2E coverage for sticky toolbar reachability, export, merge import, replace import, clear confirmation, and invalid-import state preservation in `test/extension.e2e.test.ts` per US4/AC1-AC3 and US5/AC1 (missing)
+- [X] T050 [US5] Add E2E assertions for saved-versus-pending status messaging and reload-after-save state matching in `test/extension.e2e.test.ts` per US5/AC2-AC3 (missing)
+- [X] T051 [P] Extract the dense migration-key table, localhost strip, and toolbar presentation logic into `src/options/options-config-table.ts`, `src/options/options-localhost-strip.ts`, and `src/options/options-toolbar.ts` while keeping `OptionsApp` as the orchestration owner per plan: presentational component split (missing)
+- [X] T052 [P] Extend `test/visual-qa.e2e.test.ts` with 1440px and 1280px PC fixtures, twelve-row density assertions, narrow fallback workflow checks, keyboard focus checks, and reduced-motion checks per T039/T040, SC-008, and SC-009 (partial)
+
+## Phase 10: Convergence
+
+- [X] T053 Guard toolbar persistence commands until `OptionsApp` loading completes, add a visible load-error state, and preserve loaded storage when initialization fails per `ui-contract.md:313-317` (partial)
+- [X] T054 Validate existing migration-key row edits for non-empty trimmed keys and duplicate storage-type-plus-key combinations, surface row-level messages, and add regression coverage per `data-model.md:117-120` and `ui-contract.md:136-140` (partial)
+- [X] T055 Make localhost target import validation atomic so malformed target entries reject the whole import and preserve saved and pending state per `data-model.md:119-126` and `spec.md:88-90` (partial)
+- [X] T056 Add explicit accessible names and Shadow DOM-safe label semantics to filter, composer, localhost, and migration-row controls per FR-019 and `ui-contract.md:394-401` (partial)
+- [X] T057 Remove the internal migration-row scroll requirement at wide PC widths and implement a measurable 1440px layout where twelve rows, composer, and toolbar are reachable together per FR-001, SC-001, and `ui-contract.md:371-378` (partial)
+- [X] T058 Keep operation status in the sticky toolbar and render migration-row deletion confirmation adjacent to the affected row with keyboard focus restoration per `ui-contract.md:51-76` and `ui-contract.md:343-347` (partial)
+- [X] T059 Repair or verify bundled CJK font coverage for options-page copy and add visual regression assertions for missing glyphs per `DESIGN.md:53-57` and SC-008 (partial)

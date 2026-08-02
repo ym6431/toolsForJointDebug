@@ -13,10 +13,8 @@
 [PRINCIPLE_2_DESCRIPTION]
 <!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### III. Stable Test Selectors
+DOM assertions and interactions in UI tests MUST target `data-test-id` attributes. Tests MUST NOT depend on CSS classes, element nesting, tag names, or display text for locating page elements; UI changes add or preserve the corresponding `data-test-id` on the concrete interactive or asserted element.
 
 ### [PRINCIPLE_4_NAME]
 <!-- Example: IV. Integration Testing -->
