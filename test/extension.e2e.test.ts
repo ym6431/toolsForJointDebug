@@ -4,6 +4,7 @@ import {
   type Server,
   type ServerResponse,
 } from 'node:http'
+import { readFile } from 'node:fs/promises'
 import type { AddressInfo } from 'node:net'
 import { expect, test } from 'vitest'
 import {
@@ -76,10 +77,10 @@ test('popup 应正确渲染基础界面', async () => {
 
   expect(await popupPage.title()).toMatch(/State Migrator/i)
   expect(
-    await popupPage.getByRole('heading', { name: '页面状态迁移' }).isVisible(),
+    await popupPage.locator('[data-test-id="popup-title"]').isVisible(),
   ).toBe(true)
   expect(
-    await popupPage.getByRole('button', { name: '配置', exact: true }).isVisible(),
+    await popupPage.locator('[data-test-id="popup-open-options-button"]').isVisible(),
   ).toBe(true)
 
   await popupPage.setViewportSize({ width: 375, height: 900 })
@@ -123,26 +124,24 @@ test('popup 导入预览应展示 cookie 元信息', async () => {
   const popupPage = await browser.getPopupPage()
 
   await popupPage.waitForLoadState('domcontentloaded')
-  await popupPage.getByRole('button', { name: '导入模式' }).click()
+  await popupPage.locator('[data-test-id="popup-mode-import-button"]').click()
 
-  const importDetails = popupPage.locator('popup-import-panel app-disclosure details').first()
-  const importSummary = popupPage.locator('popup-import-panel app-disclosure summary').first()
-  const cookieMeta = popupPage.locator('popup-import-panel app-disclosure .cookie-meta').first()
+  const importDetails = popupPage.locator('[data-test-id="import-preview-disclosure-details"]')
+  const importSummary = popupPage.locator('[data-test-id="import-preview-disclosure-details-summary"]')
+  const cookieMeta = popupPage.locator('[data-test-id="import-preview-cookie-meta"]')
 
-  expect(
-    await popupPage.getByText('Cookie dataset', { exact: true }).first().isVisible(),
-  ).toBe(true)
+  expect(await popupPage.locator('[data-test-id="saved-dataset-name"]').first().isVisible()).toBe(true)
   expect(await importDetails.getAttribute('open')).toBeNull()
   expect(await importSummary.textContent()).toContain('数据集内容')
   expect(await importSummary.textContent()).toContain('1 项')
-  expect(await popupPage.getByText('locale', { exact: true }).first().isVisible()).toBe(false)
+  expect(await popupPage.locator('[data-test-id="import-preview-item-key"]').first().isVisible()).toBe(false)
   expect(await cookieMeta.isVisible()).toBe(false)
 
   await importSummary.focus()
   await popupPage.keyboard.press('Enter')
 
   expect(await importDetails.getAttribute('open')).toBe('')
-  expect(await popupPage.getByText('locale', { exact: true }).first().isVisible()).toBe(true)
+  expect(await popupPage.locator('[data-test-id="import-preview-item-key"]').first().isVisible()).toBe(true)
   expect(await cookieMeta.isVisible()).toBe(true)
   expect(await cookieMeta.textContent()).toContain('HttpOnly')
   expect(await cookieMeta.textContent()).toContain('Secure')
@@ -157,31 +156,34 @@ test('options 页面应允许保存 cookie 配置和 localhost 端口', async ()
   const optionsPage = await openOptionsPage()
 
   expect(
-    await optionsPage.getByRole('heading', { name: '迁移 Key 配置' }).isVisible(),
+    await optionsPage.locator('[data-test-id="options-title"]').isVisible(),
   ).toBe(true)
 
-  const workspace = optionsPage.locator('section.key-workspace')
-  const localhostStrip = optionsPage.locator('section.localhost-strip')
-  const composerStorageType = workspace.locator('app-select select')
-  const composerKeyInput = workspace.locator('.composer app-input input').nth(0)
-  const composerDescriptionInput = workspace.locator('.composer app-input input').nth(1)
-  const localhostProtocolSelect = localhostStrip.locator('app-select select')
-  const localhostPortInput = localhostStrip.locator('app-input input')
+  const composerStorageType = optionsPage.locator('[data-test-id="options-composer-storage-select"]')
+  const composerKeyInput = optionsPage.locator('[data-test-id="options-composer-key-input"]')
+  const composerDescriptionInput = optionsPage.locator('[data-test-id="options-composer-description-input"]')
+  const localhostProtocolSelect = optionsPage.locator('[data-test-id="options-localhost-protocol-select"]')
+  const localhostPortInput = optionsPage.locator('[data-test-id="options-localhost-port-input"]')
+
+  expect(await optionsPage.getByRole('combobox', { name: '新增 Storage 类型' }).isVisible()).toBe(true)
+  expect(await optionsPage.getByRole('textbox', { name: '新增 Key' }).isVisible()).toBe(true)
+  expect(await optionsPage.getByRole('textbox', { name: '新增说明' }).isVisible()).toBe(true)
+  expect(await optionsPage.getByRole('combobox', { name: '协议' }).isVisible()).toBe(true)
+  expect(await optionsPage.getByRole('textbox', { name: '端口' }).isVisible()).toBe(true)
 
   await composerStorageType.selectOption('cookie')
   await composerKeyInput.fill('locale')
   await composerDescriptionInput.fill('语言 Cookie')
-  await optionsPage.getByRole('button', { name: '加入列表', exact: true }).click()
+  await optionsPage.locator('[data-test-id="options-add-config-button"]').click()
 
   await localhostProtocolSelect.selectOption('https')
   await localhostPortInput.fill('5173')
-  await optionsPage.getByRole('button', { name: '加入端口列表', exact: true }).click()
-  await optionsPage.getByRole('button', { name: '保存全部配置', exact: true }).click()
+  await optionsPage.locator('[data-test-id="options-add-localhost-button"]').click()
+  await optionsPage.locator('[data-test-id="options-save-all-button"]').click()
 
-  expect(await optionsPage.getByText('配置已保存。').isVisible()).toBe(true)
-  expect(
-    await optionsPage.getByText('https://localhost:5173', { exact: true }).first().isVisible(),
-  ).toBe(true)
+  expect(await optionsPage.locator('[data-test-id="options-operation-message"]').isVisible()).toBe(true)
+  expect(await optionsPage.locator('[data-test-id="options-pending-indicator"]').isVisible()).toBe(false)
+  expect(await optionsPage.locator('[data-test-id="options-localhost-target-label"]').isVisible()).toBe(true)
 
   const storageState = await getExtensionIndexedDbState()
 
@@ -200,6 +202,511 @@ test('options 页面应允许保存 cookie 配置和 localhost 端口', async ()
   await optionsPage.close()
 })
 
+test('options 加载期间禁用工具栏操作，加载失败时保留已保存状态', async () => {
+  await deleteExtensionIndexedDbState()
+  await setExtensionChromeStorageLocalState({
+    [STORAGE_KEYS.datasets]: [],
+    [STORAGE_KEYS.customConfig]: [
+      { storageType: 'localStorage', key: 'legacy-key', description: '保留的旧配置' },
+    ],
+    [STORAGE_KEYS.localhostPorts]: [{ protocol: 'http', port: '5173' }],
+    [STORAGE_KEYS.defaultLocalhostPort]: 'http:5173',
+  })
+
+  const extensionId = await browser.getExtensionId()
+  const loadingPage = await context.newPage()
+  await loadingPage.addInitScript(() => {
+    Object.defineProperty(chrome.storage.local, 'get', {
+      configurable: true,
+      value: () => new Promise<never>(() => {}),
+    })
+  })
+  await loadingPage.goto(`chrome-extension://${extensionId}/options.html`)
+
+  try {
+    const toolbar = loadingPage.locator('[data-test-id="options-toolbar"]')
+    const saveAll = toolbar.locator('[data-test-id="options-save-all-button"]')
+    await saveAll.waitFor()
+    expect(await toolbar.locator('[data-test-id="options-export-config-button"]').isDisabled()).toBe(true)
+    expect(await toolbar.locator('[data-test-id="options-import-merge-button"]').isDisabled()).toBe(true)
+    expect(await toolbar.locator('[data-test-id="options-import-replace-button"]').isDisabled()).toBe(true)
+    expect(await saveAll.isDisabled()).toBe(true)
+    expect(await toolbar.locator('[data-test-id="options-clear-all-button"]').isDisabled()).toBe(true)
+    expect(await toolbar.locator('[data-test-id="options-load-status"]').textContent()).toContain('正在加载配置')
+  } finally {
+    await loadingPage.close()
+  }
+
+  const failingPage = await context.newPage()
+  await failingPage.addInitScript(() => {
+    Object.defineProperty(chrome.storage.local, 'get', {
+      configurable: true,
+      value: () => Promise.reject(new Error('模拟加载失败')),
+    })
+  })
+  await failingPage.goto(`chrome-extension://${extensionId}/options.html`)
+
+  try {
+    const loadError = failingPage.locator('[data-test-id="options-load-error"]')
+    await loadError.waitFor()
+    expect(await loadError.textContent()).toContain('模拟加载失败')
+    expect(await getExtensionChromeStorageLocalState()).toMatchObject({
+      [STORAGE_KEYS.customConfig]: [
+        { storageType: 'localStorage', key: 'legacy-key', description: '保留的旧配置' },
+      ],
+      [STORAGE_KEYS.localhostPorts]: [{ protocol: 'http', port: '5173' }],
+      [STORAGE_KEYS.defaultLocalhostPort]: 'http:5173',
+    })
+  } finally {
+    await failingPage.close()
+  }
+})
+
+test('options 重设计应在初始 1440×900 视口内紧凑展示十二行，并支持筛选和行内编辑', async () => {
+  await setExtensionIndexedDbState({
+    [STORAGE_KEYS.customConfig]: Array.from({ length: 12 }, (_, index) => ({
+      storageType: 'localStorage' as const,
+      key: `dense-key-${String(index + 1).padStart(2, '0')}`,
+      description: `高密度说明 ${index + 1}`,
+    })),
+  })
+
+  let optionsPage: Awaited<ReturnType<typeof openOptionsPage>> | null = null
+
+  try {
+    optionsPage = await openOptionsPage()
+    await optionsPage.setViewportSize({ width: 1440, height: 900 })
+
+    const workspace = optionsPage.locator('[data-test-id="options-key-workspace"]')
+    const rows = workspace.locator('[data-test-id="options-config-row"]')
+    const rowList = workspace.locator('[data-test-id="options-config-row-list"]')
+
+    await rows.first().waitFor()
+    expect(await rows.count()).toBe(12)
+
+    const rowListMetrics = await rowList.evaluate((element) => ({
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+    }))
+    const horizontalOverflow = await optionsPage.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    )
+
+    expect(rowListMetrics.scrollHeight).toBe(rowListMetrics.clientHeight)
+    expect(horizontalOverflow).toBeLessThanOrEqual(0)
+    expect(await optionsPage.evaluate(() => window.scrollY)).toBe(0)
+    const outOfViewportElements = await optionsPage.locator([
+      '[data-test-id="options-toolbar"]',
+      '[data-test-id="options-localhost-strip"]',
+      '[data-test-id="options-config-row"]',
+      '[data-test-id="options-config-composer"]',
+      'button[data-test-id]',
+    ].join(', ')).evaluateAll((elements) => elements.map((element) => {
+      const box = element.getBoundingClientRect()
+      const isWithinViewport = box.width > 0
+        && box.height > 0
+        && box.top >= 0
+        && box.bottom <= window.innerHeight
+      return isWithinViewport
+        ? null
+        : {
+            tagName: element.tagName,
+            text: element.textContent?.trim(),
+            top: box.top,
+            bottom: box.bottom,
+          }
+    }).filter((element): element is NonNullable<typeof element> => element !== null))
+    expect(outOfViewportElements).toEqual([])
+    const filterInput = workspace.locator('[data-test-id="options-filter-input"]')
+    expect(await filterInput.getAttribute('aria-label')).toBe('筛选配置')
+    await filterInput.fill('dense-key-08')
+    expect(await rows.count()).toBe(1)
+    expect(await rows.first().locator('[data-test-id="options-config-row-key-input"]').inputValue()).toBe('dense-key-08')
+
+    await filterInput.fill('高密度说明 11')
+    expect(await rows.count()).toBe(1)
+    expect(await rows.first().locator('[data-test-id="options-config-row-key-input"]').inputValue()).toBe('dense-key-11')
+
+    await filterInput.fill('')
+    await rows.first().locator('[data-test-id="options-config-row-description-input"]').fill('已行内编辑的说明')
+
+    expect(await optionsPage.locator('[data-test-id="options-pending-indicator"]').isVisible()).toBe(true)
+    expect((await getExtensionIndexedDbState())[STORAGE_KEYS.customConfig]?.[0]).toEqual({
+      storageType: 'localStorage',
+      key: 'dense-key-01',
+      description: '高密度说明 1',
+    })
+  } finally {
+    await optionsPage?.close().catch(() => {})
+  }
+})
+
+test('options localhost 目标应切换默认值、确认删除并同步给 popup', async () => {
+  await setExtensionIndexedDbState({
+    [STORAGE_KEYS.localhostPorts]: [
+      { protocol: 'http', port: '5173' },
+      { protocol: 'https', port: '3000' },
+    ],
+    [STORAGE_KEYS.defaultLocalhostPort]: 'http:5173',
+  })
+
+  let optionsPage: Awaited<ReturnType<typeof openOptionsPage>> | null = null
+  let popupPage: Awaited<ReturnType<typeof browser.getPopupPage>> | null = null
+
+  try {
+    optionsPage = await openOptionsPage()
+    const targetStrip = optionsPage.locator('[data-test-id="options-localhost-strip"]')
+    const httpTarget = targetStrip.locator('[data-test-id="options-localhost-target"][data-target-key="http:5173"]')
+    const httpsTarget = targetStrip.locator('[data-test-id="options-localhost-target"][data-target-key="https:3000"]')
+
+    await httpsTarget.locator('[data-test-id="options-localhost-default-button"]').click()
+    expect(await httpsTarget.locator('.badge').isVisible()).toBe(true)
+    expect(await optionsPage.locator('[data-test-id="options-pending-indicator"]').isVisible()).toBe(true)
+
+    const deleteHttpTarget = httpTarget.locator('[data-test-id="options-localhost-delete-button"]')
+    await deleteHttpTarget.click()
+    const confirmation = targetStrip.locator('[data-test-id="options-localhost-delete-confirmation"]')
+    await confirmation.waitFor()
+    expect(await confirmation.getAttribute('role')).toBe('alertdialog')
+    expect(await confirmation.getAttribute('aria-label')).toBe('删除目标确认')
+    expect(await confirmation.textContent()).toContain('确认删除目标 http://localhost:5173？')
+    await confirmation.locator('[data-test-id="options-localhost-delete-cancel-button"]').click()
+    expect(await deleteHttpTarget.evaluate((button) => button.matches(':focus'))).toBe(true)
+
+    await deleteHttpTarget.click()
+    await confirmation.locator('[data-test-id="options-localhost-delete-confirm-button"]').click()
+    expect(await httpTarget.count()).toBe(0)
+    expect(await httpsTarget.locator('[data-test-id="options-localhost-delete-button"]').evaluate((button) => button.matches(':focus'))).toBe(true)
+
+    await optionsPage.locator('[data-test-id="options-save-all-button"]').click()
+    await optionsPage.locator('[data-test-id="options-operation-message"]').waitFor()
+
+    expect(await getExtensionIndexedDbState()).toMatchObject({
+      [STORAGE_KEYS.localhostPorts]: [{ protocol: 'https', port: '3000' }],
+      [STORAGE_KEYS.defaultLocalhostPort]: 'https:3000',
+    })
+
+    popupPage = await browser.getPopupPage()
+    await popupPage.waitForLoadState('domcontentloaded')
+    expect(
+      await popupPage.locator('[data-test-id="export-localhost-target-select"]').inputValue(),
+    ).toBe('https:3000')
+
+    await httpsTarget.locator('[data-test-id="options-localhost-delete-button"]').click()
+    await confirmation.locator('[data-test-id="options-localhost-delete-confirm-button"]').click()
+    expect(await targetStrip.locator('[data-test-id="options-add-localhost-button"]').evaluate((button) => button.matches(':focus'))).toBe(true)
+  } finally {
+    await popupPage?.close().catch(() => {})
+    await optionsPage?.close().catch(() => {})
+  }
+})
+
+test('options 配置编辑器应阻止无效行、在行内确认删除并提示离开前保存', async () => {
+  await setExtensionIndexedDbState({
+    [STORAGE_KEYS.customConfig]: [
+      { storageType: 'localStorage', key: 'existing-key', description: '已保存配置' },
+    ],
+  })
+
+  let optionsPage: Awaited<ReturnType<typeof openOptionsPage>> | null = null
+
+  try {
+    optionsPage = await openOptionsPage()
+    const workspace = optionsPage.locator('[data-test-id="options-key-workspace"]')
+    const addConfig = optionsPage.locator('[data-test-id="options-add-config-button"]')
+    const composerKey = optionsPage.locator('[data-test-id="options-composer-key-input"]')
+    const composerStorageType = optionsPage.locator('[data-test-id="options-composer-storage-select"]')
+
+    await addConfig.click()
+    expect(await workspace.locator('[data-test-id="options-composer-message"]').textContent()).toBe('Key 不能为空。')
+
+    expect(await composerStorageType.locator('option').evaluateAll((options) =>
+      options.map((option) => option.getAttribute('value')),
+    )).toEqual([
+      'localStorage',
+      'sessionStorage',
+      'cookie',
+    ])
+
+    await composerKey.fill('existing-key')
+    await addConfig.click()
+    expect(await workspace.locator('[data-test-id="options-composer-message"]').textContent()).toBe('localStorage:existing-key 已存在，请使用其它 Key。')
+
+    await composerKey.fill('second-key')
+    await addConfig.click()
+    const rows = workspace.locator('[data-test-id="options-config-row"]')
+    expect(await rows.count()).toBe(2)
+
+    const secondRow = rows.nth(1)
+    const secondRowKey = secondRow.locator('[data-test-id="options-config-row-key-input"]')
+    await secondRowKey.fill(' existing-key ')
+    expect(await secondRow.locator('[data-test-id="options-config-row-validation-message"]').textContent()).toBe('localStorage:existing-key 已存在，请使用其它 Key。')
+    expect(await secondRowKey.getAttribute('aria-invalid')).toBe('true')
+    expect(await secondRowKey.evaluate((input) => {
+      const descriptionId = input.getAttribute('aria-describedby')
+      const root = input.getRootNode()
+      return descriptionId && root instanceof ShadowRoot
+        ? root.getElementById(descriptionId)?.textContent
+        : null
+    })).toBe('localStorage:existing-key 已存在，请使用其它 Key。')
+    expect(await optionsPage.locator('[data-test-id="options-save-all-button"]').isDisabled()).toBe(true)
+    expect(await optionsPage.locator('[data-test-id="options-export-config-button"]').isDisabled()).toBe(true)
+    expect((await getExtensionIndexedDbState())[STORAGE_KEYS.customConfig]).toEqual([
+      { storageType: 'localStorage', key: 'existing-key', description: '已保存配置' },
+    ])
+
+    await secondRowKey.fill('validated-key')
+    expect(await secondRow.locator('[data-test-id="options-config-row-validation-message"]').count()).toBe(0)
+    expect(await optionsPage.locator('[data-test-id="options-save-all-button"]').isDisabled()).toBe(false)
+
+    const deleteExisting = rows.first().locator('[data-test-id="options-config-row-delete-button"]')
+    await deleteExisting.click()
+    const confirmation = workspace.locator('[data-test-id="options-config-row-delete-confirmation"]')
+    await confirmation.waitFor()
+    expect(await confirmation.getAttribute('role')).toBe('alertdialog')
+    expect(await confirmation.getAttribute('aria-label')).toBe('删除配置确认')
+    expect(await confirmation.textContent()).toContain('确认删除配置 localStorage:existing-key？')
+    expect(await confirmation.evaluate((element) => element.closest('[data-ui-id]')?.getAttribute('data-ui-id'))).not.toBeNull()
+    await confirmation.locator('[data-test-id="options-config-row-delete-cancel-button"]').click()
+    expect(await deleteExisting.evaluate((button) => button.matches(':focus'))).toBe(true)
+
+    await deleteExisting.click()
+    await workspace.locator('[data-test-id="options-config-row-delete-confirm-button"]').click()
+    expect(await rows.count()).toBe(1)
+    const deleteValidated = rows.first().locator('[data-test-id="options-config-row-delete-button"]')
+    expect(await deleteValidated.evaluate((button) => button.matches(':focus'))).toBe(true)
+
+    await deleteValidated.click()
+    await workspace.locator('[data-test-id="options-config-row-delete-confirm-button"]').click()
+    expect(await rows.count()).toBe(0)
+    expect(await composerKey.evaluate((input) => input.matches(':focus'))).toBe(true)
+
+    const beforeUnloadDialog = optionsPage.waitForEvent('dialog')
+    await optionsPage.close({ runBeforeUnload: true })
+    const dialog = await beforeUnloadDialog
+    expect(dialog.type()).toBe('beforeunload')
+    await dialog.dismiss()
+    await optionsPage.close()
+    optionsPage = null
+  } finally {
+    await optionsPage?.close().catch(() => {})
+  }
+})
+
+test('options 工具栏应导出、合并或覆盖导入，并在清空前要求确认', async () => {
+  await setExtensionIndexedDbState({
+    [STORAGE_KEYS.customConfig]: [
+      { storageType: 'localStorage', key: 'export-key', description: '待导出配置' },
+    ],
+    [STORAGE_KEYS.localhostPorts]: [{ protocol: 'http', port: '5173' }],
+    [STORAGE_KEYS.defaultLocalhostPort]: 'http:5173',
+  })
+
+  let optionsPage: Awaited<ReturnType<typeof openOptionsPage>> | null = null
+
+  try {
+    optionsPage = await openOptionsPage()
+    const toolbar = optionsPage.locator('[data-test-id="options-toolbar"]')
+    const workspace = optionsPage.locator('[data-test-id="options-key-workspace"]')
+    const importInput = optionsPage.locator('[data-test-id="options-import-file-input"]')
+
+    for (const [testId, buttonName] of [
+      ['options-export-config-button', '导出配置'],
+      ['options-import-merge-button', '追加合并导入'],
+      ['options-import-replace-button', '覆盖导入'],
+      ['options-save-all-button', '保存全部配置'],
+      ['options-clear-all-button', '清空全部配置'],
+    ]) {
+      const button = toolbar.locator(`[data-test-id="${testId}"]`)
+      expect(await button.isVisible()).toBe(true)
+      expect((await button.textContent())?.trim()).toBe(buttonName)
+    }
+
+    const downloadPromise = optionsPage.waitForEvent('download')
+    await toolbar.locator('[data-test-id="options-export-config-button"]').click()
+    const download = await downloadPromise
+    const downloadPath = await download.path()
+
+    expect(download.suggestedFilename()).toMatch(/^state-migrator-config-\d{4}-\d{2}-\d{2}\.json$/)
+    if (!downloadPath) {
+      throw new Error('Expected the exported configuration download to be available.')
+    }
+    expect(JSON.parse(await readFile(downloadPath, 'utf8'))).toMatchObject({
+      version: 3,
+      localhostTargets: [{ protocol: 'http', port: '5173' }],
+      defaultLocalhostTarget: 'http:5173',
+      items: [{ storageType: 'localStorage', key: 'export-key', description: '待导出配置' }],
+    })
+
+    await toolbar.locator('[data-test-id="options-import-merge-button"]').click()
+    await importInput.setInputFiles({
+      name: 'merge-config.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify({
+        items: [{ storageType: 'sessionStorage', key: 'merge-key', description: '追加配置' }],
+        localhostTargets: [{ protocol: 'https', port: '4173' }],
+        defaultLocalhostTarget: 'https:4173',
+      })),
+    })
+    await optionsPage.locator('[data-test-id="options-operation-message"]').filter({ hasText: '已追加合并 1 项配置' }).waitFor()
+    expect(await workspace.locator('[data-test-id="options-config-row"]').count()).toBe(2)
+    expect(await workspace.locator('[data-test-id="options-config-row"]').nth(1).locator('[data-test-id="options-config-row-key-input"]').inputValue()).toBe('merge-key')
+
+    await toolbar.locator('[data-test-id="options-import-replace-button"]').click()
+    await importInput.setInputFiles({
+      name: 'replace-config.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify({
+        items: [{ storageType: 'cookie', key: 'replace-key', description: '覆盖配置' }],
+        localhostTargets: [{ protocol: 'https', port: '9443' }],
+        defaultLocalhostTarget: 'https:9443',
+      })),
+    })
+    await optionsPage.locator('[data-test-id="options-operation-message"]').filter({ hasText: '已覆盖导入 1 项配置' }).waitFor()
+    expect(await workspace.locator('[data-test-id="options-config-row"]').count()).toBe(1)
+    expect(await workspace.locator('[data-test-id="options-config-row"]').first().locator('[data-test-id="options-config-row-key-input"]').inputValue()).toBe('replace-key')
+
+    const clearAll = toolbar.locator('[data-test-id="options-clear-all-button"]')
+    await clearAll.click()
+    const confirmation = toolbar.locator('[data-test-id="options-clear-all-confirmation"]')
+    await confirmation.waitFor()
+    expect(await confirmation.getAttribute('role')).toBe('alertdialog')
+    expect(await confirmation.getAttribute('aria-label')).toBe('清空配置确认')
+    expect(await confirmation.textContent()).toContain('确认清空全部配置项？')
+    expect(await confirmation.evaluate((element) => {
+      const root = element.getRootNode()
+      return root instanceof ShadowRoot && root.host.localName === 'options-toolbar'
+    })).toBe(true)
+    await confirmation.locator('[data-test-id="options-clear-all-cancel-button"]').click()
+    expect(await clearAll.evaluate((button) => button.matches(':focus'))).toBe(true)
+
+    await clearAll.click()
+    await confirmation.locator('[data-test-id="options-clear-all-confirm-button"]').click()
+    await optionsPage.locator('[data-test-id="options-operation-message"]').filter({ hasText: '已清空全部配置项。' }).waitFor()
+    expect(await optionsPage.locator('[data-test-id="options-pending-indicator"]').isVisible()).toBe(false)
+    expect(await clearAll.evaluate((button) => button.matches(':focus'))).toBe(true)
+    expect(await getExtensionIndexedDbState()).toMatchObject({
+      [STORAGE_KEYS.customConfig]: [],
+      [STORAGE_KEYS.localhostPorts]: [],
+      [STORAGE_KEYS.defaultLocalhostPort]: '',
+    })
+  } finally {
+    await optionsPage?.close().catch(() => {})
+  }
+})
+
+test('options 无效导入应保留草稿，保存后重载应匹配已保存状态', async () => {
+  await setExtensionIndexedDbState({
+    [STORAGE_KEYS.customConfig]: [
+      { storageType: 'localStorage', key: 'saved-key', description: '已保存说明' },
+    ],
+    [STORAGE_KEYS.localhostPorts]: [{ protocol: 'http', port: '5173' }],
+    [STORAGE_KEYS.defaultLocalhostPort]: 'http:5173',
+  })
+
+  let optionsPage: Awaited<ReturnType<typeof openOptionsPage>> | null = null
+
+  try {
+    optionsPage = await openOptionsPage()
+    const workspace = optionsPage.locator('[data-test-id="options-key-workspace"]')
+    const row = workspace.locator('[data-test-id="options-config-row"]').first()
+    const importInput = optionsPage.locator('[data-test-id="options-import-file-input"]')
+    const pendingIndicator = optionsPage.locator('[data-test-id="options-pending-indicator"]')
+
+    await row.waitFor()
+    await row.locator('[data-test-id="options-config-row-description-input"]').fill('待保存说明')
+    expect(await pendingIndicator.isVisible()).toBe(true)
+    expect((await getExtensionIndexedDbState())[STORAGE_KEYS.customConfig]).toEqual([
+      { storageType: 'localStorage', key: 'saved-key', description: '已保存说明' },
+    ])
+
+    await optionsPage.locator('[data-test-id="options-import-replace-button"]').click()
+    await importInput.setInputFiles({
+      name: 'invalid-localhost-target.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify({
+        items: [{ storageType: 'sessionStorage', key: 'valid-key', description: '有效配置' }],
+        localhostTargets: [
+          { protocol: 'https', port: '4173' },
+          { protocol: 'ftp', port: '3000' },
+        ],
+      })),
+    })
+    await optionsPage.locator('[data-test-id="options-operation-message"]').filter({ hasText: '第 2 个 localhostTargets 不合法。' }).waitFor()
+    expect(await row.locator('[data-test-id="options-config-row-description-input"]').inputValue()).toBe('待保存说明')
+    expect(await pendingIndicator.isVisible()).toBe(true)
+
+    await optionsPage.locator('[data-test-id="options-save-all-button"]').click()
+    await optionsPage.locator('[data-test-id="options-operation-message"]').filter({ hasText: '配置已保存。' }).waitFor()
+    expect(await pendingIndicator.isVisible()).toBe(false)
+    expect((await getExtensionIndexedDbState())[STORAGE_KEYS.customConfig]).toEqual([
+      { storageType: 'localStorage', key: 'saved-key', description: '待保存说明' },
+    ])
+
+    await optionsPage.reload()
+    await row.waitFor()
+    expect(await row.locator('[data-test-id="options-config-row-description-input"]').inputValue()).toBe('待保存说明')
+    expect(await pendingIndicator.isVisible()).toBe(false)
+  } finally {
+    await optionsPage?.close().catch(() => {})
+  }
+})
+
+test('options 保存或清空失败时保留待处理界面并显示转义后的失败状态', async () => {
+  await setExtensionIndexedDbState({
+    [STORAGE_KEYS.customConfig]: [
+      { storageType: 'localStorage', key: 'saved-key', description: '已保存说明' },
+    ],
+  })
+
+  const extensionId = await browser.getExtensionId()
+  const optionsPage = await context.newPage()
+  await optionsPage.addInitScript(() => {
+    const originalClear = IDBObjectStore.prototype.clear
+    IDBObjectStore.prototype.clear = function (this: IDBObjectStore) {
+      if (this.name === 'custom-config') {
+        throw new Error('模拟写入失败 <b>escaped</b>')
+      }
+      return originalClear.call(this)
+    }
+  })
+  await optionsPage.goto(`chrome-extension://${extensionId}/options.html`)
+
+  try {
+    const workspace = optionsPage.locator('[data-test-id="options-key-workspace"]')
+    const toolbar = optionsPage.locator('[data-test-id="options-toolbar"]')
+    const row = workspace.locator('[data-test-id="options-config-row"]').first()
+    const description = row.locator('[data-test-id="options-config-row-description-input"]')
+
+    await row.waitFor()
+    await description.fill('尚未保存的说明')
+    expect(await toolbar.locator('[data-test-id="options-pending-indicator"]').isVisible()).toBe(true)
+
+    await toolbar.locator('[data-test-id="options-save-all-button"]').click()
+    const saveFailure = toolbar.locator('[data-test-id="options-operation-message"]').filter({ hasText: '保存配置失败' })
+    await saveFailure.waitFor()
+    expect(await saveFailure.textContent()).toContain('模拟写入失败 <b>escaped</b>')
+    expect(await saveFailure.locator('b').count()).toBe(0)
+    expect(await description.inputValue()).toBe('尚未保存的说明')
+    expect(await toolbar.locator('[data-test-id="options-pending-indicator"]').isVisible()).toBe(true)
+    expect((await getExtensionIndexedDbState())[STORAGE_KEYS.customConfig]).toEqual([
+      { storageType: 'localStorage', key: 'saved-key', description: '已保存说明' },
+    ])
+
+    const clearAll = toolbar.locator('[data-test-id="options-clear-all-button"]')
+    await clearAll.click()
+    const confirmation = toolbar.locator('[data-test-id="options-clear-all-confirmation"]')
+    await confirmation.locator('[data-test-id="options-clear-all-confirm-button"]').click()
+    const clearFailure = toolbar.locator('[data-test-id="options-operation-message"]').filter({ hasText: '清空配置失败' })
+    await clearFailure.waitFor()
+    expect(await description.inputValue()).toBe('尚未保存的说明')
+    expect(await toolbar.locator('[data-test-id="options-pending-indicator"]').isVisible()).toBe(true)
+    expect(await clearAll.evaluate((button) => button.matches(':focus'))).toBe(true)
+  } finally {
+    await optionsPage.close().catch(() => {})
+  }
+})
+
 test('popup 导出模式应加载已保存的默认 localhost 端口', async () => {
   await setExtensionIndexedDbState({
     [STORAGE_KEYS.localhostPorts]: [
@@ -213,26 +720,14 @@ test('popup 导出模式应加载已保存的默认 localhost 端口', async () 
 
   await popupPage.waitForLoadState('domcontentloaded')
 
-  const exportPanels = popupPage.locator('popup-export-panel .panel')
-  expect(await exportPanels.nth(0).getByRole('button', { name: '保存选中项为数据集' }).isVisible()).toBe(true)
-  expect(
-    await exportPanels.nth(1).getByRole('button', { name: '重新扫描可导出项' }).isVisible(),
-  ).toBe(true)
+  expect(await popupPage.locator('[data-test-id="export-save-dataset-button"]').isVisible()).toBe(true)
+  expect(await popupPage.locator('[data-test-id="export-rescan-button"]').isVisible()).toBe(true)
+  expect(await popupPage.locator('[data-test-id="export-save-and-inject-button"]').isVisible()).toBe(true)
 
-  expect(
-    await popupPage
-      .getByRole('button', { name: '保存并注入到 https://localhost:3000' })
-      .isVisible(),
-  ).toBe(true)
-
-  const portSelect = popupPage.locator('app-select select').first()
+  const portSelect = popupPage.locator('[data-test-id="export-localhost-target-select"]')
   await portSelect.selectOption('http:5173')
 
-  expect(
-    await popupPage
-      .getByRole('button', { name: '保存并注入到 http://localhost:5173' })
-      .isVisible(),
-  ).toBe(true)
+  expect(await popupPage.locator('[data-test-id="export-save-and-inject-button"]').isVisible()).toBe(true)
 
   const storedDefaultPort = (await getExtensionIndexedDbState())[STORAGE_KEYS.defaultLocalhostPort]
 
@@ -262,16 +757,18 @@ test('popup 保存第十一组数据后应仅保留最新十组', async () => {
     })
     popupPage = await openPopupPageForTab(sourceUrl)
     await popupPage.waitForLoadState('domcontentloaded')
-    await popupPage.getByRole('button', { name: '导出模式' }).click()
-    await popupPage.getByText('已扫描到 1 个可导出项。').waitFor()
-    await popupPage.locator('app-input input').first().fill('Newest saved dataset')
-    await popupPage.getByRole('button', { name: '保存选中项为数据集' }).click()
-    await popupPage.getByText('已保存数据集“Newest saved dataset”。').waitFor()
-    await popupPage.getByRole('button', { name: '导入模式' }).click()
+    await popupPage.locator('[data-test-id="popup-mode-export-button"]').click()
+    await popupPage.locator('[data-test-id="popup-result-message"]').waitFor()
+    expect(await popupPage.locator('[data-test-id="popup-result-message"]').textContent()).toBe('已扫描到 1 个可导出项。')
+    await popupPage.locator('[data-test-id="export-dataset-name-input"]').fill('Newest saved dataset')
+    await popupPage.locator('[data-test-id="export-save-dataset-button"]').click()
+    await popupPage.locator('[data-test-id="popup-result-message"]').waitFor()
+    expect(await popupPage.locator('[data-test-id="popup-result-message"]').textContent()).toBe('已保存数据集“Newest saved dataset”。')
+    await popupPage.locator('[data-test-id="popup-mode-import-button"]').click()
 
-    expect(await popupPage.getByText('10 组', { exact: true }).isVisible()).toBe(true)
-    expect(await popupPage.getByText('Newest saved dataset', { exact: true }).isVisible()).toBe(true)
-    expect(await popupPage.getByText('Seed Dataset 1', { exact: true }).count()).toBe(0)
+    expect(await popupPage.locator('[data-test-id="import-dataset-count"]').isVisible()).toBe(true)
+    expect(await popupPage.locator('[data-test-id="saved-dataset-name"]').first().textContent()).toBe('Newest saved dataset')
+    expect(await popupPage.locator('[data-test-id="saved-dataset-name"]').count()).toBe(10)
     expect((await getExtensionIndexedDbState())[STORAGE_KEYS.datasets]).toHaveLength(10)
   } finally {
     await popupPage?.close().catch(() => {})
@@ -308,12 +805,12 @@ test('popup 首次启动应迁移旧 chrome.storage.local 数据', async () => {
     popupPage = await openPopupPageForTab(targetUrl)
     await popupPage.waitForLoadState('domcontentloaded')
 
-    await popupPage.getByText('Legacy dataset', { exact: true }).waitFor()
-    const importSummary = popupPage.locator('popup-import-panel app-disclosure summary').first()
+    await popupPage.locator('[data-test-id="saved-dataset-name"]').waitFor()
+    const importSummary = popupPage.locator('[data-test-id="import-preview-disclosure-details-summary"]')
     expect(await importSummary.textContent()).toContain('1 项')
-    expect(await popupPage.getByText('legacy-key', { exact: true }).isVisible()).toBe(false)
+    expect(await popupPage.locator('[data-test-id="import-preview-item-key"]').isVisible()).toBe(false)
     await importSummary.click()
-    expect(await popupPage.getByText('legacy-key', { exact: true }).isVisible()).toBe(true)
+    expect(await popupPage.locator('[data-test-id="import-preview-item-key"]').isVisible()).toBe(true)
     const state = await getExtensionIndexedDbState()
     expect(state[STORAGE_KEYS.localhostPorts]).toEqual([{ protocol: 'http', port: '5173' }])
     expect(state[STORAGE_KEYS.defaultLocalhostPort]).toBe('http:5173')
@@ -357,11 +854,16 @@ test('保存并注入应在源标签后打开目标标签', async () => {
 
     popupPage = await openPopupPageForTab(sourceUrl)
     await popupPage.waitForLoadState('domcontentloaded')
-    await popupPage.getByRole('button', { name: '导出模式' }).click()
-    await popupPage.getByText('已扫描到 1 个可导出项。').waitFor()
+    await popupPage.locator('[data-test-id="popup-mode-export-button"]').click()
+    await popupPage.locator('[data-test-id="popup-result-message"]').waitFor()
+    expect(await popupPage.locator('[data-test-id="popup-result-message"]').textContent()).toBe('已扫描到 1 个可导出项。')
     await sourcePage.bringToFront()
-    await popupPage.getByRole('button', { name: `保存并注入到 http://localhost:${targetPort}` }).click()
-    await popupPage.getByText(`已打开 ${targetUrl}，并成功注入 1 项。`).waitFor()
+    await popupPage.locator('[data-test-id="export-save-and-inject-button"]').click()
+    await popupPage
+      .locator('[data-test-id="popup-result-message"]')
+      .filter({ hasText: `已打开 ${targetUrl}，并成功注入 1 项。` })
+      .waitFor()
+    expect(await popupPage.locator('[data-test-id="popup-result-message"]').textContent()).toContain(`已打开 ${targetUrl}，并成功注入 1 项。`)
 
     const tabs = await getExtensionTabsSnapshot()
     const targetTab = tabs.find((tab) => tab.url === targetUrl)
@@ -412,33 +914,32 @@ test('popup 应可从源页面导出 cookie 并导入到 localhost 页面', asyn
 
     exportPopup = await openPopupPageForTab(sourceUrl)
     await exportPopup.waitForLoadState('domcontentloaded')
-    await exportPopup.getByRole('button', { name: '导出模式' }).click()
-    expect(await exportPopup.getByText(sourceUrl, { exact: true }).isVisible()).toBe(true)
+    await exportPopup.locator('[data-test-id="popup-mode-export-button"]').click()
+    expect(await exportPopup.locator('[data-test-id="export-page-url"]').isVisible()).toBe(true)
+    expect(await exportPopup.locator('[data-test-id="export-page-url"]').textContent()).toBe(sourceUrl)
 
-    await exportPopup.getByText('已扫描到 1 个可导出项。').waitFor()
-    expect(await exportPopup.getByText('已扫描到 1 个可导出项。').isVisible()).toBe(true)
-    const exportDetails = exportPopup.locator('popup-export-panel app-disclosure details').first()
-    const exportSummary = exportPopup.locator('popup-export-panel app-disclosure summary').first()
+    await exportPopup.locator('[data-test-id="popup-result-message"]').waitFor()
+    expect(await exportPopup.locator('[data-test-id="popup-result-message"]').textContent()).toBe('已扫描到 1 个可导出项。')
+    const exportDetails = exportPopup.locator('[data-test-id="export-items-disclosure-details"]')
+    const exportSummary = exportPopup.locator('[data-test-id="export-items-disclosure-details-summary"]')
     expect(await exportDetails.getAttribute('open')).toBeNull()
     expect(await exportSummary.textContent()).toContain('数据集内容')
     expect(await exportSummary.textContent()).toContain('1 项')
-    expect(await exportPopup.getByText(cookieName, { exact: true }).isVisible()).toBe(false)
+    expect(await exportPopup.locator('[data-test-id="export-item-key"]').isVisible()).toBe(false)
 
-    const exportedCookieMeta = exportPopup.locator('popup-export-panel app-disclosure .cookie-meta').first()
+    const exportedCookieMeta = exportPopup.locator('[data-test-id="export-item-cookie-meta"]')
     expect(await exportedCookieMeta.isVisible()).toBe(false)
     await exportSummary.click()
     expect(await exportDetails.getAttribute('open')).toBe('')
-    expect(await exportPopup.getByText(cookieName, { exact: true }).isVisible()).toBe(true)
+    expect(await exportPopup.locator('[data-test-id="export-item-key"]').isVisible()).toBe(true)
     expect(await exportedCookieMeta.isVisible()).toBe(true)
     expect(await exportedCookieMeta.textContent()).toContain('HttpOnly')
     expect(await exportedCookieMeta.textContent()).toContain('HostOnly')
     expect(await exportedCookieMeta.textContent()).toContain('SameSite=Strict')
     expect(await exportedCookieMeta.textContent()).toContain('Expires=')
 
-    await exportPopup.getByRole('button', { name: '保存选中项为数据集' }).click()
-    expect(await exportPopup.getByText('已保存数据集“Imported from 127.0.0.1”。').isVisible()).toBe(
-      true,
-    )
+    await exportPopup.locator('[data-test-id="export-save-dataset-button"]').click()
+    expect(await exportPopup.locator('[data-test-id="popup-result-message"]').textContent()).toBe('已保存数据集“Imported from 127.0.0.1”。')
     await exportPopup.close()
     exportPopup = null
 
@@ -446,21 +947,22 @@ test('popup 应可从源页面导出 cookie 并导入到 localhost 页面', asyn
     await targetPage.goto(targetUrl)
     importPopup = await openPopupPageForTab(targetUrl)
     await importPopup.waitForLoadState('domcontentloaded')
-    expect(await importPopup.getByText(targetUrl, { exact: true }).isVisible()).toBe(true)
-    expect(await importPopup.getByRole('button', { name: '导入模式' }).isVisible()).toBe(true)
-    const importDetails = importPopup.locator('popup-import-panel app-disclosure details').first()
-    const importSummary = importPopup.locator('popup-import-panel app-disclosure summary').first()
+    expect(await importPopup.locator('[data-test-id="import-page-url"]').isVisible()).toBe(true)
+    expect(await importPopup.locator('[data-test-id="import-page-url"]').textContent()).toBe(targetUrl)
+    expect(await importPopup.locator('[data-test-id="popup-mode-import-button"]').isVisible()).toBe(true)
+    const importDetails = importPopup.locator('[data-test-id="import-preview-disclosure-details"]')
+    const importSummary = importPopup.locator('[data-test-id="import-preview-disclosure-details-summary"]')
     expect(await importDetails.getAttribute('open')).toBeNull()
     expect(await importSummary.textContent()).toContain('数据集内容')
     expect(await importSummary.textContent()).toContain('1 项')
-    expect(await importPopup.getByText(cookieName, { exact: true }).isVisible()).toBe(false)
+    expect(await importPopup.locator('[data-test-id="import-preview-item-key"]').isVisible()).toBe(false)
     await importSummary.focus()
     await importPopup.keyboard.press(' ')
     expect(await importDetails.getAttribute('open')).toBe('')
-    expect(await importPopup.getByText(cookieName, { exact: true }).isVisible()).toBe(true)
+    expect(await importPopup.locator('[data-test-id="import-preview-item-key"]').isVisible()).toBe(true)
 
-    await importPopup.getByRole('button', { name: '确认导入选中项' }).click()
-    expect(await importPopup.getByText('成功导入 1 项。').isVisible()).toBe(true)
+    await importPopup.locator('[data-test-id="import-confirm-button"]').click()
+    expect(await importPopup.locator('[data-test-id="popup-result-message"]').textContent()).toBe('成功导入 1 项。')
 
     const importedCookie = await getCookieForUrl(targetUrl, cookieName)
 
@@ -498,6 +1000,19 @@ async function setExtensionChromeStorageLocalState(items: LegacyChromeStorageSta
     await chrome.storage.local.clear()
     await chrome.storage.local.set(payload)
   }, items)
+}
+
+async function getExtensionChromeStorageLocalState() {
+  const serviceWorker = await browser.getServiceWorker()
+
+  return await serviceWorker.evaluate(
+    async (keys: string[]) => await chrome.storage.local.get(keys),
+    [
+      STORAGE_KEYS.customConfig,
+      STORAGE_KEYS.localhostPorts,
+      STORAGE_KEYS.defaultLocalhostPort,
+    ],
+  )
 }
 
 async function clearExtensionChromeStorageLocal() {
