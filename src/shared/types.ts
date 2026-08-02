@@ -81,6 +81,10 @@ export interface ImportApplyResponse {
   failed: string[]
 }
 
+export type ErrorResponse = {
+  readonly error: string
+}
+
 export type BackgroundMessage =
   | { type: 'GET_ACTIVE_TAB' }
   | { type: 'OPEN_OPTIONS_PAGE' }
@@ -124,3 +128,148 @@ export type PageBridgeResponse =
       ok: false
       error: string
     }
+
+export function isBackgroundMessage(value: unknown): value is BackgroundMessage {
+  if (!isRecord(value)) {
+    return false
+  }
+
+  switch (value.type) {
+    case 'GET_ACTIVE_TAB':
+    case 'OPEN_OPTIONS_PAGE':
+      return true
+    case 'RELOAD_TAB':
+      return isTabId(value.tabId)
+    case 'READ_COOKIES':
+      return isHttpUrl(value.url) && isStringArray(value.keys)
+    case 'APPLY_COOKIES_TO_URL':
+      return isHttpUrl(value.url) && isDatasetItemArray(value.items)
+    case 'OPEN_LOCALHOST_AND_APPLY_ITEMS':
+      return isLocalhostTarget(value.target) && isDatasetItemArray(value.items)
+    default:
+      return false
+  }
+}
+
+export function isContentMessage(value: unknown): value is ContentMessage {
+  if (!isRecord(value)) {
+    return false
+  }
+
+  switch (value.type) {
+    case 'COLLECT_EXPORTABLE_ITEMS':
+      return Array.isArray(value.config) && value.config.every(isConfigItem)
+    case 'APPLY_IMPORT_ITEMS':
+      return isDatasetItemArray(value.items)
+    default:
+      return false
+  }
+}
+
+export function isDatasetItem(value: unknown): value is DatasetItem {
+  return isRecord(value)
+    && isStorageType(value.storageType)
+    && typeof value.key === 'string'
+    && typeof value.value === 'string'
+    && (value.cookie === undefined || isCookieMetadata(value.cookie))
+}
+
+export function isExportScanResponse(value: unknown): value is ExportScanResponse {
+  return isRecord(value) && isDatasetItemArray(value.items)
+}
+
+export function isImportApplyResponse(value: unknown): value is ImportApplyResponse {
+  return isRecord(value)
+    && isNonNegativeInteger(value.imported)
+    && isStringArray(value.failed)
+}
+
+export function isErrorResponse(value: unknown): value is ErrorResponse {
+  return isRecord(value) && typeof value.error === 'string'
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isStorageType(value: unknown): value is StorageType {
+  return value === 'localStorage' || value === 'sessionStorage' || value === 'cookie'
+}
+
+function isConfigItem(value: unknown): value is ConfigItem {
+  return isRecord(value)
+    && isStorageType(value.storageType)
+    && typeof value.key === 'string'
+    && typeof value.description === 'string'
+}
+
+function isCookieMetadata(value: unknown): value is CookieMetadata {
+  return isRecord(value)
+    && typeof value.domain === 'string'
+    && typeof value.hostOnly === 'boolean'
+    && typeof value.path === 'string'
+    && typeof value.secure === 'boolean'
+    && typeof value.httpOnly === 'boolean'
+    && isCookieSameSite(value.sameSite)
+    && typeof value.session === 'boolean'
+    && (value.expirationDate === undefined || isNonNegativeNumber(value.expirationDate))
+    && (value.storeId === undefined || typeof value.storeId === 'string')
+    && (value.partitionKey === undefined || isCookiePartitionKey(value.partitionKey))
+}
+
+function isCookieSameSite(value: unknown): value is CookieSameSite {
+  return value === 'no_restriction'
+    || value === 'lax'
+    || value === 'strict'
+    || value === 'unspecified'
+}
+
+function isCookiePartitionKey(value: unknown): value is CookiePartitionKey {
+  return isRecord(value)
+    && (value.topLevelSite === undefined || typeof value.topLevelSite === 'string')
+    && (value.hasCrossSiteAncestor === undefined || typeof value.hasCrossSiteAncestor === 'boolean')
+}
+
+function isLocalhostTarget(value: unknown): value is LocalhostTarget {
+  return isRecord(value)
+    && (value.protocol === 'http' || value.protocol === 'https')
+    && isPort(value.port)
+}
+
+function isDatasetItemArray(value: unknown): value is DatasetItem[] {
+  return Array.isArray(value) && value.every(isDatasetItem)
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string')
+}
+
+function isTabId(value: unknown): value is number {
+  return isNonNegativeInteger(value)
+}
+
+function isPort(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^[1-9]\d{0,4}$/.test(value)) {
+    return false
+  }
+
+  return Number(value) <= 65_535
+}
+
+function isHttpUrl(value: unknown): value is string {
+  if (typeof value !== 'string' || !URL.canParse(value)) {
+    return false
+  }
+
+  const url = new URL(value)
+
+  return url.protocol === 'http:' || url.protocol === 'https:'
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+}
+
+function isNonNegativeNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+}

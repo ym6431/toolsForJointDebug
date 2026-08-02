@@ -5,97 +5,91 @@ import {
 } from './shared/cookie-utils'
 import { ensureStorageInitialized } from './shared/storage'
 import type {
-  BackgroundMessage,
   DatasetItem,
   LocalhostTarget,
   PageInfo,
 } from './shared/types'
+import { isBackgroundMessage } from './shared/types'
 import { buildLocalhostUrl } from './shared/utils'
 
+// allow: SIZE_OK — privileged background operations stay co-located at their extension boundary.
 chrome.runtime.onInstalled.addListener(() => {
   void ensureStorageInitialized()
 })
 
-chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
-  const payload = message as BackgroundMessage
-
-  if (payload.type === 'GET_ACTIVE_TAB') {
-    void getActiveTab()
-      .then((pageInfo) => sendResponse(pageInfo))
-      .catch((error: unknown) => {
-        sendResponse({
-          error:
-            error instanceof Error ? error.message : '无法获取当前活动标签页。',
-        })
-      })
-
-    return true
+chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
+  if (!isExtensionPageSender(sender) || !isBackgroundMessage(message)) {
+    return false
   }
 
-  if (payload.type === 'OPEN_OPTIONS_PAGE') {
-    void chrome.runtime.openOptionsPage()
-      .then(() => sendResponse({ ok: true }))
-      .catch((error: unknown) => {
-        sendResponse({
-          error:
-            error instanceof Error ? error.message : '无法打开配置页面。',
+  switch (message.type) {
+    case 'GET_ACTIVE_TAB':
+      void getActiveTab()
+        .then((pageInfo) => sendResponse(pageInfo))
+        .catch((error: unknown) => {
+          sendResponse({
+            error:
+              error instanceof Error ? error.message : '无法获取当前活动标签页。',
+          })
         })
-      })
 
-    return true
-  }
-
-  if (payload.type === 'RELOAD_TAB') {
-    void chrome.tabs
-      .reload(payload.tabId)
-      .then(() => sendResponse({ ok: true }))
-      .catch((error: unknown) => {
-        sendResponse({
-          error: error instanceof Error ? error.message : '页面刷新失败。',
+      return true
+    case 'OPEN_OPTIONS_PAGE':
+      void chrome.runtime.openOptionsPage()
+        .then(() => sendResponse({ ok: true }))
+        .catch((error: unknown) => {
+          sendResponse({
+            error:
+              error instanceof Error ? error.message : '无法打开配置页面。',
+          })
         })
-      })
 
-    return true
-  }
-
-  if (payload.type === 'READ_COOKIES') {
-    void readCookies(payload.url, payload.keys)
-      .then((items) => sendResponse({ items }))
-      .catch((error: unknown) => {
-        sendResponse({
-          error: error instanceof Error ? error.message : '读取 Cookie 失败。',
+      return true
+    case 'RELOAD_TAB':
+      void chrome.tabs
+        .reload(message.tabId)
+        .then(() => sendResponse({ ok: true }))
+        .catch((error: unknown) => {
+          sendResponse({
+            error: error instanceof Error ? error.message : '页面刷新失败。',
+          })
         })
-      })
 
-    return true
-  }
-
-  if (payload.type === 'APPLY_COOKIES_TO_URL') {
-    void applyCookiesToUrl(payload.url, payload.items)
-      .then((result) => sendResponse(result))
-      .catch((error: unknown) => {
-        sendResponse({
-          error: error instanceof Error ? error.message : '写入 Cookie 失败。',
+      return true
+    case 'READ_COOKIES':
+      void readCookies(message.url, message.keys)
+        .then((items) => sendResponse({ items }))
+        .catch((error: unknown) => {
+          sendResponse({
+            error: error instanceof Error ? error.message : '读取 Cookie 失败。',
+          })
         })
-      })
 
-    return true
-  }
-
-  if (payload.type === 'OPEN_LOCALHOST_AND_APPLY_ITEMS') {
-    void openLocalhostAndApplyItems(payload.target, payload.items)
-      .then((result) => sendResponse(result))
-      .catch((error: unknown) => {
-        sendResponse({
-          error:
-            error instanceof Error ? error.message : '打开并注入 localhost 页面失败。',
+      return true
+    case 'APPLY_COOKIES_TO_URL':
+      void applyCookiesToUrl(message.url, message.items)
+        .then((result) => sendResponse(result))
+        .catch((error: unknown) => {
+          sendResponse({
+            error: error instanceof Error ? error.message : '写入 Cookie 失败。',
+          })
         })
-      })
 
-    return true
+      return true
+    case 'OPEN_LOCALHOST_AND_APPLY_ITEMS':
+      void openLocalhostAndApplyItems(message.target, message.items)
+        .then((result) => sendResponse(result))
+        .catch((error: unknown) => {
+          sendResponse({
+            error:
+              error instanceof Error ? error.message : '打开并注入 localhost 页面失败。',
+          })
+        })
+
+      return true
+    default:
+      return assertNever(message)
   }
-
-  return false
 })
 
 async function getActiveTab(): Promise<PageInfo> {
@@ -316,4 +310,17 @@ function sleep(ms: number) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms)
   })
+}
+
+function assertNever(value: never): false {
+  return value
+}
+
+function isExtensionPageSender(sender: chrome.runtime.MessageSender) {
+  if (sender.tab === undefined) {
+    return true
+  }
+
+  return typeof sender.url === 'string'
+    && sender.url.startsWith(chrome.runtime.getURL(''))
 }

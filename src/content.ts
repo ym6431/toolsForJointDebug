@@ -1,18 +1,19 @@
 import { sendBridgeRequest } from './shared/bridge-client'
-import { isCookieItem } from './shared/cookie-utils'
 import type {
   ConfigItem,
-  ContentMessage,
   DatasetItem,
   ExportScanResponse,
   ImportApplyResponse,
 } from './shared/types'
+import { isContentMessage } from './shared/types'
 
 chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
-  const payload = message as ContentMessage
+  if (!isContentMessage(message)) {
+    return false
+  }
 
-  if (payload.type === 'COLLECT_EXPORTABLE_ITEMS') {
-    void collectExportableItems(payload.config)
+  if (message.type === 'COLLECT_EXPORTABLE_ITEMS') {
+    void collectExportableItems(message.config)
       .then((result) => sendResponse(result))
       .catch((error: unknown) => {
         sendResponse({
@@ -23,8 +24,8 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
     return true
   }
 
-  if (payload.type === 'APPLY_IMPORT_ITEMS') {
-    void applyImportItems(payload.items)
+  if (message.type === 'APPLY_IMPORT_ITEMS') {
+    void applyImportItems(message.items)
       .then((result) => sendResponse(result))
       .catch((error: unknown) => {
         sendResponse({
@@ -42,24 +43,9 @@ async function collectExportableItems(
   config: ConfigItem[],
 ): Promise<ExportScanResponse> {
   const storageConfig = config.filter((item) => item.storageType !== 'cookie')
-  const cookieKeys = config
-    .filter((item) => item.storageType === 'cookie')
-    .map((item) => item.key)
-
-  const [storageItems, cookieItems] = await Promise.all([
-    collectStorageItems(storageConfig),
-    collectCookieItems(cookieKeys),
-  ])
-  const itemMap = new Map(
-    [...storageItems, ...cookieItems].map((item) => [toItemKey(item), item]),
-  )
 
   return {
-    items: config.flatMap((item) => {
-      const collectedItem = itemMap.get(toItemKey(item))
-
-      return collectedItem ? [collectedItem] : []
-    }),
+    items: await collectStorageItems(storageConfig),
   }
 }
 
@@ -67,64 +53,23 @@ async function applyImportItems(
   items: DatasetItem[],
 ): Promise<ImportApplyResponse> {
   const storageItems = items.filter((item) => item.storageType !== 'cookie')
-  const cookieItems = items.filter(isCookieItem)
-  let imported = 0
-  const failed: string[] = []
 
-  if (storageItems.length > 0) {
-    try {
-      const response = await sendBridgeRequest({
-        type: 'APPLY_IMPORT_ITEMS',
-        items: storageItems,
-      })
-
-      if (!response.ok || response.type !== 'APPLY_IMPORT_ITEMS') {
-        throw new Error(response.ok ? '页面返回了未知的写入结果。' : response.error)
-      }
-
-      imported += response.imported
-      failed.push(...response.failed)
-    } catch (error) {
-      failed.push(
-        ...storageItems.map(
-          (item) =>
-            `${item.storageType}:${item.key} - ${
-              error instanceof Error ? error.message : '写入失败'
-            }`,
-        ),
-      )
-    }
+  if (storageItems.length === 0) {
+    return { imported: 0, failed: [] }
   }
 
-  if (cookieItems.length > 0) {
-    try {
-      const response = (await chrome.runtime.sendMessage({
-        type: 'APPLY_COOKIES_TO_URL',
-        url: window.location.href,
-        items: cookieItems,
-      })) as ImportApplyResponse & { error?: string }
+  const response = await sendBridgeRequest({
+    type: 'APPLY_IMPORT_ITEMS',
+    items: storageItems,
+  })
 
-      if (response.error) {
-        throw new Error(response.error)
-      }
-
-      imported += response.imported
-      failed.push(...response.failed)
-    } catch (error) {
-      failed.push(
-        ...cookieItems.map(
-          (item) =>
-            `cookie:${item.key} - ${
-              error instanceof Error ? error.message : '写入失败'
-            }`,
-        ),
-      )
-    }
+  if (!response.ok || response.type !== 'APPLY_IMPORT_ITEMS') {
+    throw new Error(response.ok ? '页面返回了未知的写入结果。' : response.error)
   }
 
   return {
-    imported,
-    failed,
+    imported: response.imported,
+    failed: response.failed,
   }
 }
 
@@ -143,26 +88,4 @@ async function collectStorageItems(config: ConfigItem[]): Promise<DatasetItem[]>
   }
 
   return response.items
-}
-
-async function collectCookieItems(keys: string[]): Promise<DatasetItem[]> {
-  if (keys.length === 0) {
-    return []
-  }
-
-  const response = (await chrome.runtime.sendMessage({
-    type: 'READ_COOKIES',
-    url: window.location.href,
-    keys,
-  })) as { items?: DatasetItem[]; error?: string }
-
-  if (response.error) {
-    throw new Error(response.error)
-  }
-
-  return response.items ?? []
-}
-
-function toItemKey(item: Pick<ConfigItem, 'storageType' | 'key'>) {
-  return `${item.storageType}:${item.key}`
 }

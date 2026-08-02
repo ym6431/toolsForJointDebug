@@ -1,5 +1,6 @@
 import { LitElement, css, html, nothing } from 'lit'
 import { customElement, state } from 'lit/decorators.js'
+import { isCookieItem } from '../shared/cookie-utils'
 import {
   deleteDataset,
   getDefaultLocalhostTargetKey,
@@ -17,6 +18,11 @@ import type {
   PageInfo,
 } from '../shared/types'
 import {
+  isErrorResponse,
+  isExportScanResponse,
+  isImportApplyResponse,
+} from '../shared/types'
+import {
   formatDisplayHost,
   formatLocalhostTarget,
   serializeLocalhostTarget,
@@ -32,6 +38,7 @@ interface BackgroundResponse {
 
 type PopupMode = 'export' | 'import'
 
+// allow: SIZE_OK — popup state orchestration and its existing Lit styles form one component boundary.
 @customElement('popup-app')
 export class PopupApp extends LitElement {
   @state()
@@ -158,16 +165,51 @@ export class PopupApp extends LitElement {
 
     try {
       const config = await getCustomConfig()
-      const response = (await chrome.tabs.sendMessage(this.pageInfo.tabId, {
-        type: 'COLLECT_EXPORTABLE_ITEMS',
-        config,
-      })) as { items?: DatasetItem[]; error?: string }
+      const storageConfig = config.filter((item) => item.storageType !== 'cookie')
+      const cookieKeys = config
+        .filter((item) => item.storageType === 'cookie')
+        .map((item) => item.key)
+      const [storageResponse, cookieResponse] = await Promise.all([
+        chrome.tabs.sendMessage(this.pageInfo.tabId, {
+          type: 'COLLECT_EXPORTABLE_ITEMS',
+          config: storageConfig,
+        }),
+        cookieKeys.length === 0
+          ? Promise.resolve({ items: [] })
+          : chrome.runtime.sendMessage({
+              type: 'READ_COOKIES',
+              url: this.pageInfo.url,
+              keys: cookieKeys,
+            }),
+      ])
 
-      if (response.error) {
-        throw new Error(response.error)
+      if (isErrorResponse(storageResponse)) {
+        throw new Error(storageResponse.error)
       }
 
-      const items = response.items ?? []
+      if (!isExportScanResponse(storageResponse)) {
+        throw new Error('页面返回了未知的读取结果。')
+      }
+
+      if (isErrorResponse(cookieResponse)) {
+        throw new Error(cookieResponse.error)
+      }
+
+      if (!isExportScanResponse(cookieResponse)) {
+        throw new Error('后台返回了未知的 Cookie 读取结果。')
+      }
+
+      const itemMap = new Map(
+        [...storageResponse.items, ...cookieResponse.items].map((item) => [
+          toRecordKey(item.storageType, item.key),
+          item,
+        ]),
+      )
+      const items = config.flatMap((item) => {
+        const collectedItem = itemMap.get(toRecordKey(item.storageType, item.key))
+
+        return collectedItem ? [collectedItem] : []
+      })
       this.exportItems = items
       this.selectedExportKeys = new Set(
         items.map((item) => toRecordKey(item.storageType, item.key)),
@@ -367,28 +409,77 @@ export class PopupApp extends LitElement {
     this.importing = true
 
     try {
-      const response = (await chrome.tabs.sendMessage(this.pageInfo.tabId, {
-        type: 'APPLY_IMPORT_ITEMS',
-        items: selectedItems,
-      })) as { imported?: number; failed?: string[]; error?: string }
+      const storageItems = selectedItems.filter((item) => !isCookieItem(item))
+      const cookieItems = selectedItems.filter(isCookieItem)
+      let imported = 0
+      const failed: string[] = []
 
-      if (response.error) {
-        throw new Error(response.error)
+      if (storageItems.length > 0) {
+        try {
+          const response: unknown = await chrome.tabs.sendMessage(this.pageInfo.tabId, {
+            type: 'APPLY_IMPORT_ITEMS',
+            items: storageItems,
+          })
+
+          if (isErrorResponse(response)) {
+            throw new Error(response.error)
+          }
+
+          if (!isImportApplyResponse(response)) {
+            throw new Error('页面返回了未知的写入结果。')
+          }
+
+          imported += response.imported
+          failed.push(...response.failed)
+        } catch (error) {
+          failed.push(
+            ...storageItems.map(
+              (item) =>
+                `${item.storageType}:${item.key} - ${
+                  error instanceof Error ? error.message : '写入失败'
+                }`,
+            ),
+          )
+        }
       }
 
-      const failed = response.failed ?? []
+      if (cookieItems.length > 0) {
+        try {
+          const response: unknown = await chrome.runtime.sendMessage({
+            type: 'APPLY_COOKIES_TO_URL',
+            url: this.pageInfo.url,
+            items: cookieItems,
+          })
+
+          if (isErrorResponse(response)) {
+            throw new Error(response.error)
+          }
+
+          if (!isImportApplyResponse(response)) {
+            throw new Error('后台返回了未知的 Cookie 写入结果。')
+          }
+
+          imported += response.imported
+          failed.push(...response.failed)
+        } catch (error) {
+          failed.push(
+            ...cookieItems.map(
+              (item) =>
+                `cookie:${item.key} - ${
+                  error instanceof Error ? error.message : '写入失败'
+                }`,
+            ),
+          )
+        }
+      }
+
       this.result = {
         ok: failed.length === 0,
         message:
           failed.length === 0
-            ? `成功导入 ${response.imported ?? 0} 项。`
-            : `已导入 ${response.imported ?? 0} 项，另有 ${failed.length} 项失败。`,
+            ? `成功导入 ${imported} 项。`
+            : `已导入 ${imported} 项，另有 ${failed.length} 项失败。`,
         details: failed,
-      }
-    } catch (error) {
-      this.result = {
-        ok: false,
-        message: error instanceof Error ? error.message : '导入失败。',
       }
     } finally {
       this.importing = false
@@ -431,9 +522,9 @@ export class PopupApp extends LitElement {
         <header>
           <div>
             <p class="eyebrow">Frontend State Migrator</p>
-            <h1>页面状态迁移</h1>
+            <h1 data-test-id="popup-title">页面状态迁移</h1>
           </div>
-          <button class="secondary" @click=${this.openOptionsPage}>配置</button>
+          <button data-test-id="popup-open-options-button" class="secondary" @click=${this.openOptionsPage}>配置</button>
         </header>
 
         ${this.loading
@@ -477,7 +568,7 @@ export class PopupApp extends LitElement {
                 ? html`
                     <section class="panel result ${this.result.ok ? 'ok' : 'error'}">
                       <h2>操作结果</h2>
-                      <p>${this.result.message}</p>
+                      <p data-test-id="popup-result-message">${this.result.message}</p>
                       ${this.result.details?.length
                         ? html`
                             <ul>
@@ -501,12 +592,14 @@ export class PopupApp extends LitElement {
                   </div>
                   <div class="mode-switch" role="tablist" aria-label="切换导入导出模式">
                     <button
+                      data-test-id="popup-mode-export-button"
                       class=${this.mode === 'export' ? 'mode-button active' : 'mode-button'}
                       @click=${() => this.handleModeChange('export')}
                     >
                       导出模式
                     </button>
                     <button
+                      data-test-id="popup-mode-import-button"
                       class=${this.mode === 'import' ? 'mode-button active' : 'mode-button'}
                       @click=${() => this.handleModeChange('import')}
                     >
