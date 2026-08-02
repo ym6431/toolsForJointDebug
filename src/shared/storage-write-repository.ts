@@ -200,7 +200,7 @@ function toLocalhostTargetRecord(target: LocalhostTarget, position: number): Loc
   return { id: `${position}:${target.protocol}:${target.port}`, position, target }
 }
 
-function queueDestructiveWriteRequests(
+export function queueDestructiveWriteRequests(
   transaction: Pick<IDBTransaction, 'abort' | 'error'> & { readonly done: Promise<void> },
   queueRequests: (requests: Promise<unknown>[]) => void,
 ) {

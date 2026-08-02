@@ -1,5 +1,6 @@
 import { DEFAULT_STORAGE_STATE, MAX_SAVED_DATASETS, STORAGE_KEYS } from './constants'
 import {
+  clearNormalizedOptionsConfig,
   deleteNormalizedDataset,
   initializeNormalizedStorageState,
   readNormalizedStorageState,
@@ -7,6 +8,7 @@ import {
   replaceNormalizedLocalhostTargets,
   saveNormalizedDataset,
   saveNormalizedDefaultLocalhostTarget,
+  replaceNormalizedOptionsConfig,
 } from './storage-repository'
 import type { AppStorageState, ConfigItem, Dataset, LocalhostTarget, SaveDatasetInput } from './types'
 import {
@@ -115,13 +117,7 @@ export async function getCustomConfig() {
 }
 
 export async function saveCustomConfig(items: ConfigItem[]) {
-  const normalizedItems = dedupeConfig(
-    items.map((item) => ({
-      storageType: item.storageType,
-      key: item.key.trim(),
-      description: item.description.trim(),
-    })),
-  )
+  const normalizedItems = normalizeConfigItems(items)
 
   await readStorageState()
   await replaceNormalizedCustomConfig(normalizedItems)
@@ -132,6 +128,33 @@ export async function saveCustomConfig(items: ConfigItem[]) {
 export async function resetCustomConfig() {
   await readStorageState()
   await replaceNormalizedCustomConfig([])
+}
+
+export async function saveOptionsConfig(
+  configItems: ConfigItem[],
+  targets: LocalhostTarget[],
+  defaultTargetKey: string,
+) {
+  const customConfig = normalizeConfigItems(configItems)
+  const localhostTargets = normalizeLocalhostTargetList(targets)
+  const normalizedDefaultTargetKey = resolveDefaultLocalhostTargetKey(
+    localhostTargets,
+    defaultTargetKey,
+  )
+
+  await readStorageState()
+  await replaceNormalizedOptionsConfig(
+    customConfig,
+    localhostTargets,
+    normalizedDefaultTargetKey,
+  )
+
+  return { customConfig, localhostTargets, defaultLocalhostTargetKey: normalizedDefaultTargetKey }
+}
+
+export async function clearOptionsConfig() {
+  await readStorageState()
+  await clearNormalizedOptionsConfig()
 }
 
 export async function getLocalhostTargets() {
@@ -159,6 +182,16 @@ export async function saveLocalhostTargetConfig(
     localhostTargets: normalizedTargets,
     defaultLocalhostTargetKey: normalizedDefaultTargetKey,
   }
+}
+
+function normalizeConfigItems(items: ConfigItem[]) {
+  return dedupeConfig(
+    items.map((item) => ({
+      storageType: item.storageType,
+      key: item.key.trim(),
+      description: item.description.trim(),
+    })),
+  )
 }
 
 export async function saveDefaultLocalhostTargetKey(targetKey: string) {
